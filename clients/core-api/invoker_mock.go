@@ -1861,6 +1861,66 @@ func (_c *MockInvoker_V1GetExternalCluster_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// V1GetInternalResource provides a mock function with given fields: ctx, request, params
+func (_m *MockInvoker) V1GetInternalResource(ctx context.Context, request *OpsGetResourceRequestV1, params V1GetInternalResourceParams) (V1GetInternalResourceRes, error) {
+	ret := _m.Called(ctx, request, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetInternalResource")
+	}
+
+	var r0 V1GetInternalResourceRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) (V1GetInternalResourceRes, error)); ok {
+		return rf(ctx, request, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) V1GetInternalResourceRes); ok {
+		r0 = rf(ctx, request, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetInternalResourceRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) error); ok {
+		r1 = rf(ctx, request, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1GetInternalResource_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetInternalResource'
+type MockInvoker_V1GetInternalResource_Call struct {
+	*mock.Call
+}
+
+// V1GetInternalResource is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *OpsGetResourceRequestV1
+//   - params V1GetInternalResourceParams
+func (_e *MockInvoker_Expecter) V1GetInternalResource(ctx interface{}, request interface{}, params interface{}) *MockInvoker_V1GetInternalResource_Call {
+	return &MockInvoker_V1GetInternalResource_Call{Call: _e.mock.On("V1GetInternalResource", ctx, request, params)}
+}
+
+func (_c *MockInvoker_V1GetInternalResource_Call) Run(run func(ctx context.Context, request *OpsGetResourceRequestV1, params V1GetInternalResourceParams)) *MockInvoker_V1GetInternalResource_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*OpsGetResourceRequestV1), args[2].(V1GetInternalResourceParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1GetInternalResource_Call) Return(_a0 V1GetInternalResourceRes, _a1 error) *MockInvoker_V1GetInternalResource_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1GetInternalResource_Call) RunAndReturn(run func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) (V1GetInternalResourceRes, error)) *MockInvoker_V1GetInternalResource_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1GetMultipleReplicationsByExternalUUID provides a mock function with given fields: ctx, params
 func (_m *MockInvoker) V1GetMultipleReplicationsByExternalUUID(ctx context.Context, params V1GetMultipleReplicationsByExternalUUIDParams) (V1GetMultipleReplicationsByExternalUUIDRes, error) {
 	ret := _m.Called(ctx, params)
@@ -2565,6 +2625,66 @@ func (_c *MockInvoker_V1ListInterclusterLifs_Call) Return(_a0 V1ListIntercluster
 }
 
 func (_c *MockInvoker_V1ListInterclusterLifs_Call) RunAndReturn(run func(context.Context, V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)) *MockInvoker_V1ListInterclusterLifs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ListInternalResources provides a mock function with given fields: ctx, request, params
+func (_m *MockInvoker) V1ListInternalResources(ctx context.Context, request *OpsListResourcesRequestV1, params V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error) {
+	ret := _m.Called(ctx, request, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListInternalResources")
+	}
+
+	var r0 V1ListInternalResourcesRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error)); ok {
+		return rf(ctx, request, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) V1ListInternalResourcesRes); ok {
+		r0 = rf(ctx, request, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListInternalResourcesRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) error); ok {
+		r1 = rf(ctx, request, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInvoker_V1ListInternalResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListInternalResources'
+type MockInvoker_V1ListInternalResources_Call struct {
+	*mock.Call
+}
+
+// V1ListInternalResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *OpsListResourcesRequestV1
+//   - params V1ListInternalResourcesParams
+func (_e *MockInvoker_Expecter) V1ListInternalResources(ctx interface{}, request interface{}, params interface{}) *MockInvoker_V1ListInternalResources_Call {
+	return &MockInvoker_V1ListInternalResources_Call{Call: _e.mock.On("V1ListInternalResources", ctx, request, params)}
+}
+
+func (_c *MockInvoker_V1ListInternalResources_Call) Run(run func(ctx context.Context, request *OpsListResourcesRequestV1, params V1ListInternalResourcesParams)) *MockInvoker_V1ListInternalResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*OpsListResourcesRequestV1), args[2].(V1ListInternalResourcesParams))
+	})
+	return _c
+}
+
+func (_c *MockInvoker_V1ListInternalResources_Call) Return(_a0 V1ListInternalResourcesRes, _a1 error) *MockInvoker_V1ListInternalResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInvoker_V1ListInternalResources_Call) RunAndReturn(run func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error)) *MockInvoker_V1ListInternalResources_Call {
 	_c.Call.Return(run)
 	return _c
 }

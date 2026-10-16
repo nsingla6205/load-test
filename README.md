@@ -177,6 +177,19 @@ export GHVSA_PAT=<your_github_pat>
 skaffold dev
 ```
 
+#### Regenerating API code
+
+After changing an OpenAPI spec, regenerate the code from the repo root and commit it together with the spec (CI runs `make verify-generated`):
+
+```bash
+make generate-core-api       # vcp-core/api.yaml -> vcp-core/servergen + clients/core-api (ogen v1.10.1)
+make generate-google-proxy   # google-proxy/api/gcp-api.yaml -> gcp-servergen + clients/google-proxy-client
+make generate-mocks          # mockery mocks (needed when an interface changes)
+make generate                # everything above, plus metrics, VCM and the retry engine wrapper
+```
+
+Use the `make` targets, not `go generate`: some `generate.go` files point at `ogen@latest`, which would regenerate every file with a different ogen version. See doc/api/resources/ops-inventory.md for the ops inventory API.
+
 #### Linting locally
 ```bash
 # Installing golangci-lint and vsacictl

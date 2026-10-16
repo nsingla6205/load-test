@@ -242,11 +242,11 @@ func inferIssuerForNewerLegacyStagedCert(
 }
 
 func legacyStagedCertificateIsNewer(activeCertificateID, stagedCertificateID string) bool {
-	stagedTime, stagedTimeOK := certificateIDTimestamp(stagedCertificateID)
+	stagedTime, stagedTimeOK := CertificateIDTimestamp(stagedCertificateID)
 	if !stagedTimeOK {
 		return false
 	}
-	activeTime, activeTimeOK := certificateIDTimestamp(activeCertificateID)
+	activeTime, activeTimeOK := CertificateIDTimestamp(activeCertificateID)
 	if !activeTimeOK {
 		// Create-time certificate IDs have no timestamp. A staged timestamped
 		// certificate is therefore from a later rotation.
@@ -255,7 +255,10 @@ func legacyStagedCertificateIsNewer(activeCertificateID, stagedCertificateID str
 	return stagedTime.After(activeTime)
 }
 
-func certificateIDTimestamp(certificateID string) (time.Time, bool) {
+// CertificateIDTimestamp returns the rotation time encoded at the end of a
+// rotated certificate ID (see rotatedCertificateID). Create-time certificate
+// IDs have no timestamp and return false. The time is parsed as UTC.
+func CertificateIDTimestamp(certificateID string) (time.Time, bool) {
 	const formattedTimestampLength = len(rotatedCertificateIDTimeFormat)
 	if len(certificateID) <= formattedTimestampLength ||
 		certificateID[len(certificateID)-formattedTimestampLength-1] != '-' {

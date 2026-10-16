@@ -1802,6 +1802,66 @@ func (_c *MockHandler_V1GetExternalCluster_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// V1GetInternalResource provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1GetInternalResource(ctx context.Context, req *OpsGetResourceRequestV1, params V1GetInternalResourceParams) (V1GetInternalResourceRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1GetInternalResource")
+	}
+
+	var r0 V1GetInternalResourceRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) (V1GetInternalResourceRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) V1GetInternalResourceRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1GetInternalResourceRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1GetInternalResource_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1GetInternalResource'
+type MockHandler_V1GetInternalResource_Call struct {
+	*mock.Call
+}
+
+// V1GetInternalResource is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *OpsGetResourceRequestV1
+//   - params V1GetInternalResourceParams
+func (_e *MockHandler_Expecter) V1GetInternalResource(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1GetInternalResource_Call {
+	return &MockHandler_V1GetInternalResource_Call{Call: _e.mock.On("V1GetInternalResource", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1GetInternalResource_Call) Run(run func(ctx context.Context, req *OpsGetResourceRequestV1, params V1GetInternalResourceParams)) *MockHandler_V1GetInternalResource_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*OpsGetResourceRequestV1), args[2].(V1GetInternalResourceParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1GetInternalResource_Call) Return(_a0 V1GetInternalResourceRes, _a1 error) *MockHandler_V1GetInternalResource_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1GetInternalResource_Call) RunAndReturn(run func(context.Context, *OpsGetResourceRequestV1, V1GetInternalResourceParams) (V1GetInternalResourceRes, error)) *MockHandler_V1GetInternalResource_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // V1GetMultipleReplicationsByExternalUUID provides a mock function with given fields: ctx, params
 func (_m *MockHandler) V1GetMultipleReplicationsByExternalUUID(ctx context.Context, params V1GetMultipleReplicationsByExternalUUIDParams) (V1GetMultipleReplicationsByExternalUUIDRes, error) {
 	ret := _m.Called(ctx, params)
@@ -2506,6 +2566,125 @@ func (_c *MockHandler_V1ListInterclusterLifs_Call) Return(_a0 V1ListIntercluster
 }
 
 func (_c *MockHandler_V1ListInterclusterLifs_Call) RunAndReturn(run func(context.Context, V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)) *MockHandler_V1ListInterclusterLifs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ListInternalResources provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1ListInternalResources(ctx context.Context, req *OpsListResourcesRequestV1, params V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListInternalResources")
+	}
+
+	var r0 V1ListInternalResourcesRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) V1ListInternalResourcesRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListInternalResourcesRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListInternalResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListInternalResources'
+type MockHandler_V1ListInternalResources_Call struct {
+	*mock.Call
+}
+
+// V1ListInternalResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *OpsListResourcesRequestV1
+//   - params V1ListInternalResourcesParams
+func (_e *MockHandler_Expecter) V1ListInternalResources(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1ListInternalResources_Call {
+	return &MockHandler_V1ListInternalResources_Call{Call: _e.mock.On("V1ListInternalResources", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1ListInternalResources_Call) Run(run func(ctx context.Context, req *OpsListResourcesRequestV1, params V1ListInternalResourcesParams)) *MockHandler_V1ListInternalResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*OpsListResourcesRequestV1), args[2].(V1ListInternalResourcesParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListInternalResources_Call) Return(_a0 V1ListInternalResourcesRes, _a1 error) *MockHandler_V1ListInternalResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListInternalResources_Call) RunAndReturn(run func(context.Context, *OpsListResourcesRequestV1, V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error)) *MockHandler_V1ListInternalResources_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1ListPoolNasLifs provides a mock function with given fields: ctx, params
+func (_m *MockHandler) V1ListPoolNasLifs(ctx context.Context, params V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1ListPoolNasLifs")
+	}
+
+	var r0 V1ListPoolNasLifsRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, V1ListPoolNasLifsParams) V1ListPoolNasLifsRes); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1ListPoolNasLifsRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, V1ListPoolNasLifsParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1ListPoolNasLifs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1ListPoolNasLifs'
+type MockHandler_V1ListPoolNasLifs_Call struct {
+	*mock.Call
+}
+
+// V1ListPoolNasLifs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params V1ListPoolNasLifsParams
+func (_e *MockHandler_Expecter) V1ListPoolNasLifs(ctx interface{}, params interface{}) *MockHandler_V1ListPoolNasLifs_Call {
+	return &MockHandler_V1ListPoolNasLifs_Call{Call: _e.mock.On("V1ListPoolNasLifs", ctx, params)}
+}
+
+func (_c *MockHandler_V1ListPoolNasLifs_Call) Run(run func(ctx context.Context, params V1ListPoolNasLifsParams)) *MockHandler_V1ListPoolNasLifs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(V1ListPoolNasLifsParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1ListPoolNasLifs_Call) Return(_a0 V1ListPoolNasLifsRes, _a1 error) *MockHandler_V1ListPoolNasLifs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1ListPoolNasLifs_Call) RunAndReturn(run func(context.Context, V1ListPoolNasLifsParams) (V1ListPoolNasLifsRes, error)) *MockHandler_V1ListPoolNasLifs_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3636,6 +3815,66 @@ func (_c *MockHandler_V1UpdatePool_Call) Return(_a0 V1UpdatePoolRes, _a1 error) 
 }
 
 func (_c *MockHandler_V1UpdatePool_Call) RunAndReturn(run func(context.Context, *PoolUpdateV1, V1UpdatePoolParams) (V1UpdatePoolRes, error)) *MockHandler_V1UpdatePool_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// V1UpdatePoolNasLif provides a mock function with given fields: ctx, req, params
+func (_m *MockHandler) V1UpdatePoolNasLif(ctx context.Context, req *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error) {
+	ret := _m.Called(ctx, req, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for V1UpdatePoolNasLif")
+	}
+
+	var r0 V1UpdatePoolNasLifRes
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)); ok {
+		return rf(ctx, req, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) V1UpdatePoolNasLifRes); ok {
+		r0 = rf(ctx, req, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(V1UpdatePoolNasLifRes)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) error); ok {
+		r1 = rf(ctx, req, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockHandler_V1UpdatePoolNasLif_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'V1UpdatePoolNasLif'
+type MockHandler_V1UpdatePoolNasLif_Call struct {
+	*mock.Call
+}
+
+// V1UpdatePoolNasLif is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req *UpdatePoolNasLifRequestV1
+//   - params V1UpdatePoolNasLifParams
+func (_e *MockHandler_Expecter) V1UpdatePoolNasLif(ctx interface{}, req interface{}, params interface{}) *MockHandler_V1UpdatePoolNasLif_Call {
+	return &MockHandler_V1UpdatePoolNasLif_Call{Call: _e.mock.On("V1UpdatePoolNasLif", ctx, req, params)}
+}
+
+func (_c *MockHandler_V1UpdatePoolNasLif_Call) Run(run func(ctx context.Context, req *UpdatePoolNasLifRequestV1, params V1UpdatePoolNasLifParams)) *MockHandler_V1UpdatePoolNasLif_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*UpdatePoolNasLifRequestV1), args[2].(V1UpdatePoolNasLifParams))
+	})
+	return _c
+}
+
+func (_c *MockHandler_V1UpdatePoolNasLif_Call) Return(_a0 V1UpdatePoolNasLifRes, _a1 error) *MockHandler_V1UpdatePoolNasLif_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockHandler_V1UpdatePoolNasLif_Call) RunAndReturn(run func(context.Context, *UpdatePoolNasLifRequestV1, V1UpdatePoolNasLifParams) (V1UpdatePoolNasLifRes, error)) *MockHandler_V1UpdatePoolNasLif_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -4593,6 +4593,182 @@ func (s *Server) handleV1GetExternalClusterRequest(args [1]string, argsEscaped b
 	}
 }
 
+// handleV1GetInternalResourceRequest handles v1_getInternalResource operation.
+//
+// Read-only admin API for Google tooling and internal SRE (ops inventory). Returns one row of the
+// given resourceType from the VCP database, as stored, including transitional (CREATING, UPDATING),
+// ERROR and soft-deleted rows (deletedAt is set on deleted rows). The response is an explicit
+// allowlist of reviewed fields; secrets and raw provider errors are never returned. Send exactly one
+// of identity.uuid or identity.name. projectNumber in the path is the GCP project number; use "-"
+// for any project. Get by uuid works with "-". Get by name needs a project number and, where the
+// name is only unique under a parent, that parent: pool for volume, volume for snapshot and
+// replication, backupVault for backup. Get by name is not supported for cmek and job (use uuid). If
+// several live rows match a name the API returns 409. With a project number, a resource of another
+// project returns 404. locationId is a region or zone of this deployment, or "-". Like Google Proxy,
+// the region must be this Core's region (else 400) and a zone does not filter rows. For job, the
+// response also carries a read-only Temporal describe of the job's workflow (temporal.
+// enrichmentStatus says whether it succeeded). This API returns the VCP DB row only. For backup,
+// replication, activeDirectory and cmek, Google Proxy merges CVP data into its own responses; that
+// merge is not done here, so CVP-only fields are absent. GCP only in v1; other clouds return 501.
+// POST is used for a typed body; the call is read-only and safe to retry.
+//
+// POST /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:get
+func (s *Server) handleV1GetInternalResourceRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_getInternalResource"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/internal/projects/{projectNumber}/locations/{locationId}/resources:get"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1GetInternalResourceOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code >= 100 && code < 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1GetInternalResourceOperation,
+			ID:   "v1_getInternalResource",
+		}
+	)
+	params, err := decodeV1GetInternalResourceParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	request, close, err := s.decodeV1GetInternalResourceRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1GetInternalResourceRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1GetInternalResourceOperation,
+			OperationSummary: "Get one resource from the ops inventory (read-only, SRE)",
+			OperationID:      "v1_getInternalResource",
+			Body:             request,
+			Params: middleware.Parameters{
+				{
+					Name: "projectNumber",
+					In:   "path",
+				}: params.ProjectNumber,
+				{
+					Name: "locationId",
+					In:   "path",
+				}: params.LocationId,
+				{
+					Name: "x-correlation-id",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *OpsGetResourceRequestV1
+			Params   = V1GetInternalResourceParams
+			Response = V1GetInternalResourceRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1GetInternalResourceParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1GetInternalResource(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1GetInternalResource(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeV1GetInternalResourceResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleV1GetMultipleReplicationsByExternalUUIDRequest handles v1_getMultipleReplicationsByExternalUUID operation.
 //
 // Returns replications filtered by external UUIDs and endpoint type.
@@ -6307,6 +6483,180 @@ func (s *Server) handleV1ListInterclusterLifsRequest(args [0]string, argsEscaped
 	}
 
 	if err := encodeV1ListInterclusterLifsResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleV1ListInternalResourcesRequest handles v1_listInternalResources operation.
+//
+// Read-only admin API for Google tooling and internal SRE (ops inventory). Lists rows of one
+// resourceType from the VCP database with keyset paging (ordered by internal id). projectNumber in
+// the path is the GCP project number (digits only) and is required, except for job, where "-" lists
+// across projects. A job list with "-" must send at least one other filter (resource parent,
+// correlationId, state, type or a time filter); admin jobs have no project and are only reachable
+// this way. locationId is a region or zone of this deployment, or "-". Like Google Proxy, the region
+// must be this Core's region (else 400) and a zone does not filter rows. parents are AND-ed, at most
+// one per type; each resourceType allows only its own parent types. timeFilters use the half-open
+// range [from, to) in UTC. filters.name and filters.state are exact matches. includeDeleted (default
+// false) adds soft-deleted rows. pageSize defaults to 10; values above 50 are clamped to 50.
+// nextPageToken is empty on the last page; a token is only valid with the same project and filters.
+// The token is base64 and not signed or encrypted: a caller can decode the internal row id it holds.
+// List rows of job carry temporal.enrichmentStatus SKIPPED; use get for the Temporal describe. This
+// API returns VCP DB rows only (no CVP merge). GCP only in v1; other clouds return 501.
+//
+// POST /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:list
+func (s *Server) handleV1ListInternalResourcesRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("v1_listInternalResources"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/internal/projects/{projectNumber}/locations/{locationId}/resources:list"),
+	}
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), V1ListInternalResourcesOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(codeAttr)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code >= 100 && code < 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: V1ListInternalResourcesOperation,
+			ID:   "v1_listInternalResources",
+		}
+	)
+	params, err := decodeV1ListInternalResourcesParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	request, close, err := s.decodeV1ListInternalResourcesRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response V1ListInternalResourcesRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    V1ListInternalResourcesOperation,
+			OperationSummary: "List resources in the ops inventory (read-only, SRE)",
+			OperationID:      "v1_listInternalResources",
+			Body:             request,
+			Params: middleware.Parameters{
+				{
+					Name: "projectNumber",
+					In:   "path",
+				}: params.ProjectNumber,
+				{
+					Name: "locationId",
+					In:   "path",
+				}: params.LocationId,
+				{
+					Name: "x-correlation-id",
+					In:   "header",
+				}: params.XCorrelationID,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *OpsListResourcesRequestV1
+			Params   = V1ListInternalResourcesParams
+			Response = V1ListInternalResourcesRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackV1ListInternalResourcesParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.V1ListInternalResources(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.V1ListInternalResources(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeV1ListInternalResourcesResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)

@@ -125,6 +125,10 @@ type V1GetExternalClusterRes interface {
 	v1GetExternalClusterRes()
 }
 
+type V1GetInternalResourceRes interface {
+	v1GetInternalResourceRes()
+}
+
 type V1GetMultipleReplicationsByExternalUUIDRes interface {
 	v1GetMultipleReplicationsByExternalUUIDRes()
 }
@@ -171,6 +175,10 @@ type V1ListImageVersionsRes interface {
 
 type V1ListInterclusterLifsRes interface {
 	v1ListInterclusterLifsRes()
+}
+
+type V1ListInternalResourcesRes interface {
+	v1ListInternalResourcesRes()
 }
 
 type V1ListPoolNasLifsRes interface {

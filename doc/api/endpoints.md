@@ -20,6 +20,7 @@ This file replaces the former monolithic endpoint listing. Each resource now has
 | Backup Policies | doc/api/resources/backup-policies.md |
 | Operations (LRO Polling) | doc/api/resources/operations.md |
 | Health | doc/api/resources/health.md |
+| Ops Inventory (Core, internal, read-only) | doc/api/resources/ops-inventory.md |
 
 ## Conventions (Global)
 - Base Path: `/v1beta/projects/{projectNumber}/locations/{locationId}`

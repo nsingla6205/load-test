@@ -1775,6 +1775,11 @@ func (s *NasLifIPUpdateV1) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *NilDateTime) SetFake() {
+	s.Null = true
+}
+
+// SetFake set fake values.
 func (s *OntapCredentialsV1) SetFake() {
 	{
 		{
@@ -1874,6 +1879,2182 @@ func (s *OperationV1) SetFake() {
 	{
 		{
 			s.Response = []byte("null")
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsActiveDirectoryV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.Username.SetFake()
+		}
+	}
+	{
+		{
+			s.Domain.SetFake()
+		}
+	}
+	{
+		{
+			s.DNS.SetFake()
+		}
+	}
+	{
+		{
+			s.NetBios.SetFake()
+		}
+	}
+	{
+		{
+			s.ChangeId.SetFake()
+		}
+	}
+	{
+		{
+			s.OrganizationalUnit.SetFake()
+		}
+	}
+	{
+		{
+			s.Site.SetFake()
+		}
+	}
+	{
+		{
+			s.KdcIp.SetFake()
+		}
+	}
+	{
+		{
+			s.KdcHostname.SetFake()
+		}
+	}
+	{
+		{
+			s.UserDn.SetFake()
+		}
+	}
+	{
+		{
+			s.GroupDn.SetFake()
+		}
+	}
+	{
+		{
+			s.GroupMembershipFilter.SetFake()
+		}
+	}
+	{
+		{
+			s.PreferredServersForLdapClient.SetFake()
+		}
+	}
+	{
+		{
+			s.PrimaryAd.SetFake()
+		}
+	}
+	{
+		{
+			s.ManagedAd.SetFake()
+		}
+	}
+	{
+		{
+			s.AesEncryption.SetFake()
+		}
+	}
+	{
+		{
+			s.EncryptDcConnections.SetFake()
+		}
+	}
+	{
+		{
+			s.LdapSigning.SetFake()
+		}
+	}
+	{
+		{
+			s.LdapOverTls.SetFake()
+		}
+	}
+	{
+		{
+			s.AllowLocalNfsUsersWithLdap.SetFake()
+		}
+	}
+	{
+		{
+			s.SvmIds = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.SvmIds = append(s.SvmIds, elem)
+			}
+		}
+	}
+	{
+		{
+			s.ServerRootCaCertificateSha256.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsBackupPolicyV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.DailyBackupsToKeep.SetFake()
+		}
+	}
+	{
+		{
+			s.WeeklyBackupsToKeep.SetFake()
+		}
+	}
+	{
+		{
+			s.MonthlyBackupsToKeep.SetFake()
+		}
+	}
+	{
+		{
+			s.PolicyEnabled.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsBackupV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupVaultUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupVaultName.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeName.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceVolumeZone.SetFake()
+		}
+	}
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
+			s.ScheduleTag.SetFake()
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.LatestLogicalBackupSize.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupPolicyName.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapshotName.SetFake()
+		}
+	}
+	{
+		{
+			s.CompletionTime.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsBackupVaultV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupVaultType.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceType.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupRegionName.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceRegionName.SetFake()
+		}
+	}
+	{
+		{
+			s.CrossRegionBackupVaultName.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.KmsConfigResourcePath.SetFake()
+		}
+	}
+	{
+		{
+			s.EncryptionState.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupsPrimaryKeyVersion.SetFake()
+		}
+	}
+	{
+		{
+			s.BucketNames = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.BucketNames = append(s.BucketNames, elem)
+			}
+		}
+	}
+	{
+		{
+			s.BackupMinimumEnforcedRetentionDuration.SetFake()
+		}
+	}
+	{
+		{
+			s.IsDailyBackupImmutable.SetFake()
+		}
+	}
+	{
+		{
+			s.IsWeeklyBackupImmutable.SetFake()
+		}
+	}
+	{
+		{
+			s.IsMonthlyBackupImmutable.SetFake()
+		}
+	}
+	{
+		{
+			s.IsAdhocBackupImmutable.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsCmekServiceAccountV1) SetFake() {
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Email.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceName.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.KeyRotation.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsCmekV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.ResourceId.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.KeyRing.SetFake()
+		}
+	}
+	{
+		{
+			s.KeyRingLocation.SetFake()
+		}
+	}
+	{
+		{
+			s.KeyName.SetFake()
+		}
+	}
+	{
+		{
+			s.KeyProjectId.SetFake()
+		}
+	}
+	{
+		{
+			s.CustomerProjectId.SetFake()
+		}
+	}
+	{
+		{
+			s.CreationMode.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceAccountEmail.SetFake()
+		}
+	}
+	{
+		{
+			s.SdeHealthy.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceAccount.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsGetResourceRequestV1) SetFake() {
+	{
+		{
+			s.ResourceType.SetFake()
+		}
+	}
+	{
+		{
+			s.Identity.SetFake()
+		}
+	}
+	{
+		{
+			s.Parents = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsParentV1
+				{
+					elem.SetFake()
+				}
+				s.Parents = append(s.Parents, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsIdentityV1) SetFake() {
+	{
+		{
+			s.UUID.SetFake()
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsJobDetailsV1) SetFake() {
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.TrackingId.SetFake()
+		}
+	}
+	{
+		{
+			s.ErrorMessage.SetFake()
+		}
+	}
+	{
+		{
+			s.CorrelationId.SetFake()
+		}
+	}
+	{
+		{
+			s.RequestId.SetFake()
+		}
+	}
+	{
+		{
+			s.ResourceUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.ResourceName.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.IsAdminJob.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.ScheduledAt.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsJobTemporalV1) SetFake() {
+	{
+		{
+			s.EnrichmentStatus.SetFake()
+		}
+	}
+	{
+		{
+			s.Reason.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.RunId.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowType.SetFake()
+		}
+	}
+	{
+		{
+			s.TaskQueue.SetFake()
+		}
+	}
+	{
+		{
+			s.Status.SetFake()
+		}
+	}
+	{
+		{
+			s.StartTime.SetFake()
+		}
+	}
+	{
+		{
+			s.ExecutionTime.SetFake()
+		}
+	}
+	{
+		{
+			s.CloseTime.SetFake()
+		}
+	}
+	{
+		{
+			s.HistoryLength.SetFake()
+		}
+	}
+	{
+		{
+			s.HistorySizeBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.StateTransitionCount.SetFake()
+		}
+	}
+	{
+		{
+			s.ExecutionDurationSeconds.SetFake()
+		}
+	}
+	{
+		{
+			s.FirstRunId.SetFake()
+		}
+	}
+	{
+		{
+			s.ParentWorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.ParentRunId.SetFake()
+		}
+	}
+	{
+		{
+			s.RootWorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.RootRunId.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkerDeploymentName.SetFake()
+		}
+	}
+	{
+		{
+			s.BuildId.SetFake()
+		}
+	}
+	{
+		{
+			s.VersioningBehavior.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowExecutionTimeoutSeconds.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowRunTimeoutSeconds.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowTaskTimeoutSeconds.SetFake()
+		}
+	}
+	{
+		{
+			s.ExecutionExpirationTime.SetFake()
+		}
+	}
+	{
+		{
+			s.RunExpirationTime.SetFake()
+		}
+	}
+	{
+		{
+			s.CancelRequested.SetFake()
+		}
+	}
+	{
+		{
+			s.LastResetTime.SetFake()
+		}
+	}
+	{
+		{
+			s.PendingWorkflowTask.SetFake()
+		}
+	}
+	{
+		{
+			s.PendingActivities = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsPendingActivityV1
+				{
+					elem.SetFake()
+				}
+				s.PendingActivities = append(s.PendingActivities, elem)
+			}
+		}
+	}
+	{
+		{
+			s.PendingChildren = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsPendingChildV1
+				{
+					elem.SetFake()
+				}
+				s.PendingChildren = append(s.PendingChildren, elem)
+			}
+		}
+	}
+	{
+		{
+			s.StateMismatch.SetFake()
+		}
+	}
+	{
+		{
+			s.SequenceWorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.SequenceWorkflowStatus.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsJobTemporalV1EnrichmentStatus) SetFake() {
+	*s = OpsJobTemporalV1EnrichmentStatusCOMPLETE
+}
+
+// SetFake set fake values.
+func (s *OpsJobV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.Job.SetFake()
+		}
+	}
+	{
+		{
+			s.Temporal.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsListFiltersV1) SetFake() {
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.CorrelationId.SetFake()
+		}
+	}
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsListResourcesRequestV1) SetFake() {
+	{
+		{
+			s.ResourceType.SetFake()
+		}
+	}
+	{
+		{
+			s.Parents = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsParentV1
+				{
+					elem.SetFake()
+				}
+				s.Parents = append(s.Parents, elem)
+			}
+		}
+	}
+	{
+		{
+			s.TimeFilters = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsTimeFilterV1
+				{
+					elem.SetFake()
+				}
+				s.TimeFilters = append(s.TimeFilters, elem)
+			}
+		}
+	}
+	{
+		{
+			s.Filters.SetFake()
+		}
+	}
+	{
+		{
+			s.IncludeDeleted.SetFake()
+		}
+	}
+	{
+		{
+			s.PageSize.SetFake()
+		}
+	}
+	{
+		{
+			s.PageToken.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsListResourcesResponseV1) SetFake() {
+	{
+		{
+			s.Resources = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsResourceV1
+				{
+					elem.SetFake()
+				}
+				s.Resources = append(s.Resources, elem)
+			}
+		}
+	}
+	{
+		{
+			s.NextPageToken.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsParentTypeV1) SetFake() {
+	*s = OpsParentTypeV1Pool
+}
+
+// SetFake set fake values.
+func (s *OpsParentV1) SetFake() {
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
+			s.ID = "string"
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsPendingActivityV1) SetFake() {
+	{
+		{
+			s.ActivityId.SetFake()
+		}
+	}
+	{
+		{
+			s.ActivityType.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.Attempt.SetFake()
+		}
+	}
+	{
+		{
+			s.MaximumAttempts.SetFake()
+		}
+	}
+	{
+		{
+			s.ScheduledTime.SetFake()
+		}
+	}
+	{
+		{
+			s.LastStartedTime.SetFake()
+		}
+	}
+	{
+		{
+			s.LastHeartbeatTime.SetFake()
+		}
+	}
+	{
+		{
+			s.LastAttemptCompleteTime.SetFake()
+		}
+	}
+	{
+		{
+			s.NextAttemptScheduleTime.SetFake()
+		}
+	}
+	{
+		{
+			s.CurrentRetryIntervalSeconds.SetFake()
+		}
+	}
+	{
+		{
+			s.ExpirationTime.SetFake()
+		}
+	}
+	{
+		{
+			s.Paused.SetFake()
+		}
+	}
+	{
+		{
+			s.LastWorkerIdentity.SetFake()
+		}
+	}
+	{
+		{
+			s.LastFailureType.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsPendingChildV1) SetFake() {
+	{
+		{
+			s.WorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.RunId.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowType.SetFake()
+		}
+	}
+	{
+		{
+			s.ParentClosePolicy.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsPendingWorkflowTaskV1) SetFake() {
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.Attempt.SetFake()
+		}
+	}
+	{
+		{
+			s.ScheduledTime.SetFake()
+		}
+	}
+	{
+		{
+			s.OriginalScheduledTime.SetFake()
+		}
+	}
+	{
+		{
+			s.StartedTime.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsPoolCertificateRotationV1) SetFake() {
+	{
+		{
+			s.ActiveCertificateRotatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.RotationStaged = true
+		}
+	}
+	{
+		{
+			s.StagedCertificateCreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.CaUri.SetFake()
+		}
+	}
+	{
+		{
+			s.StagedCaUri.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsPoolV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.ServiceLevel.SetFake()
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.UsedBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.Network.SetFake()
+		}
+	}
+	{
+		{
+			s.AllowAutoTiering.SetFake()
+		}
+	}
+	{
+		{
+			s.QosType.SetFake()
+		}
+	}
+	{
+		{
+			s.DeploymentName.SetFake()
+		}
+	}
+	{
+		{
+			s.HostUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.KmsConfigUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.ActiveDirectoryUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.ApiAccessMode.SetFake()
+		}
+	}
+	{
+		{
+			s.LargeCapacity.SetFake()
+		}
+	}
+	{
+		{
+			s.IsPreview.SetFake()
+		}
+	}
+	{
+		{
+			s.SatisfiesZi.SetFake()
+		}
+	}
+	{
+		{
+			s.SatisfiesZs.SetFake()
+		}
+	}
+	{
+		{
+			s.PrimaryZone.SetFake()
+		}
+	}
+	{
+		{
+			s.SecondaryZone.SetFake()
+		}
+	}
+	{
+		{
+			s.IsRegionalHa.SetFake()
+		}
+	}
+	{
+		{
+			s.IsTrueZonal.SetFake()
+		}
+	}
+	{
+		{
+			s.ThroughputMibps.SetFake()
+		}
+	}
+	{
+		{
+			s.Iops.SetFake()
+		}
+	}
+	{
+		{
+			s.WorkflowId.SetFake()
+		}
+	}
+	{
+		{
+			s.AuthType.SetFake()
+		}
+	}
+	{
+		{
+			s.CredentialConfigured.SetFake()
+		}
+	}
+	{
+		{
+			s.CertificateRotation.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsReplicationV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeName.SetFake()
+		}
+	}
+	{
+		{
+			s.MirrorState.SetFake()
+		}
+	}
+	{
+		{
+			s.RelationshipStatus.SetFake()
+		}
+	}
+	{
+		{
+			s.Healthy.SetFake()
+		}
+	}
+	{
+		{
+			s.UnhealthyReasonPresent.SetFake()
+		}
+	}
+	{
+		{
+			s.LastTransferErrorPresent.SetFake()
+		}
+	}
+	{
+		{
+			s.LagTime.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalProgress.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalTransferBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.TotalTransferTimeSecs.SetFake()
+		}
+	}
+	{
+		{
+			s.LastTransferSize.SetFake()
+		}
+	}
+	{
+		{
+			s.LastTransferDuration.SetFake()
+		}
+	}
+	{
+		{
+			s.LastTransferEndTime.SetFake()
+		}
+	}
+	{
+		{
+			s.ProgressLastUpdated.SetFake()
+		}
+	}
+	{
+		{
+			s.LastUpdatedFromOntap.SetFake()
+		}
+	}
+	{
+		{
+			s.EndpointType.SetFake()
+		}
+	}
+	{
+		{
+			s.ReplicationType.SetFake()
+		}
+	}
+	{
+		{
+			s.ReplicationSchedule.SetFake()
+		}
+	}
+	{
+		{
+			s.SourcePoolUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceVolumeUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceVolumeName.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceSvmName.SetFake()
+		}
+	}
+	{
+		{
+			s.SourceLocation.SetFake()
+		}
+	}
+	{
+		{
+			s.DestinationPoolUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.DestinationVolumeUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.DestinationVolumeName.SetFake()
+		}
+	}
+	{
+		{
+			s.DestinationSvmName.SetFake()
+		}
+	}
+	{
+		{
+			s.DestinationLocation.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.IsHybrid.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsResourceTypeV1) SetFake() {
+	*s = OpsResourceTypeV1Pool
+}
+
+// SetFake set fake values.
+func (s *OpsResourceV1) SetFake() {
+	var variant OpsActiveDirectoryV1
+
+	{
+		variant.SetFake()
+	}
+	s.SetOpsActiveDirectoryV1(variant)
+}
+
+// SetFake set fake values.
+func (s *OpsServiceAccountKeyRotationV1) SetFake() {
+	{
+		{
+			s.PrimaryKeyId.SetFake()
+		}
+	}
+	{
+		{
+			s.PrimaryKeyCreatedAt.SetFake()
+		}
+	}
+	{
+		{
+			s.RotationInProgress = true
+		}
+	}
+	{
+		{
+			s.KeysPendingDeletion = int32(0)
+		}
+	}
+	{
+		{
+			s.Keys = nil
+			for i := 0; i < 0; i++ {
+				var elem OpsServiceAccountKeyV1
+				{
+					elem.SetFake()
+				}
+				s.Keys = append(s.Keys, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsServiceAccountKeyV1) SetFake() {
+	{
+		{
+			s.KeyId = "string"
+		}
+	}
+	{
+		{
+			s.IsPrimary = true
+		}
+	}
+	{
+		{
+			s.IsActive = true
+		}
+	}
+	{
+		{
+			s.CreatedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsSnapshotV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumeName.SetFake()
+		}
+	}
+	{
+		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
+			s.IsAppConsistent.SetFake()
+		}
+	}
+	{
+		{
+			s.ExternalUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.LogicalSizeUsedInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsSourceV1) SetFake() {
+	*s = OpsSourceV1VcpDb
+}
+
+// SetFake set fake values.
+func (s *OpsTimeFilterV1) SetFake() {
+	{
+		{
+			s.Field.SetFake()
+		}
+	}
+	{
+		{
+			s.From.SetFake()
+		}
+	}
+	{
+		{
+			s.To.SetFake()
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *OpsTimeFilterV1Field) SetFake() {
+	*s = OpsTimeFilterV1FieldCreatedAt
+}
+
+// SetFake set fake values.
+func (s *OpsVolumeV1) SetFake() {
+	{
+		{
+			s.ResourceType = "string"
+		}
+	}
+	{
+		{
+			s.Source.SetFake()
+		}
+	}
+	{
+		{
+			s.UUID = "string"
+		}
+	}
+	{
+		{
+			s.Name.SetFake()
+		}
+	}
+	{
+		{
+			s.Description.SetFake()
+		}
+	}
+	{
+		{
+			s.State.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetails.SetFake()
+		}
+	}
+	{
+		{
+			s.StateDetailsWithheld.SetFake()
+		}
+	}
+	{
+		{
+			s.Health.SetFake()
+		}
+	}
+	{
+		{
+			s.ProjectNumber.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.PoolName.SetFake()
+		}
+	}
+	{
+		{
+			s.SvmUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.SvmName.SetFake()
+		}
+	}
+	{
+		{
+			s.VolumePerformanceGroupUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.SizeInBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.UsedBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.Throughput.SetFake()
+		}
+	}
+	{
+		{
+			s.MountPath.SetFake()
+		}
+	}
+	{
+		{
+			s.CreationToken.SetFake()
+		}
+	}
+	{
+		{
+			s.Protocols = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.Protocols = append(s.Protocols, elem)
+			}
+		}
+	}
+	{
+		{
+			s.SecurityStyle.SetFake()
+		}
+	}
+	{
+		{
+			s.IsDataProtection.SetFake()
+		}
+	}
+	{
+		{
+			s.IsRegionalHa.SetFake()
+		}
+	}
+	{
+		{
+			s.Zone.SetFake()
+		}
+	}
+	{
+		{
+			s.SecondaryZone.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapReserve.SetFake()
+		}
+	}
+	{
+		{
+			s.SnapshotDirectory.SetFake()
+		}
+	}
+	{
+		{
+			s.KerberosEnabled.SetFake()
+		}
+	}
+	{
+		{
+			s.LdapEnabled.SetFake()
+		}
+	}
+	{
+		{
+			s.AutoTieringEnabled.SetFake()
+		}
+	}
+	{
+		{
+			s.HotTierSizeGib.SetFake()
+		}
+	}
+	{
+		{
+			s.ColdTierSizeGib.SetFake()
+		}
+	}
+	{
+		{
+			s.ClonesSharedBytes.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupVaultUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.BackupPolicyUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.ScheduledBackupEnabled.SetFake()
+		}
+	}
+	{
+		{
+			s.RestrictedActions = nil
+			for i := 0; i < 0; i++ {
+				var elem string
+				{
+					elem = "string"
+				}
+				s.RestrictedActions = append(s.RestrictedActions, elem)
+			}
+		}
+	}
+	{
+		{
+			s.ExternalUuid.SetFake()
+		}
+	}
+	{
+		{
+			s.CreatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.UpdatedAt = time.Now()
+		}
+	}
+	{
+		{
+			s.DeletedAt.SetFake()
 		}
 	}
 }
@@ -2188,6 +4369,51 @@ func (s *OptNilPoolV1QosType) SetFake() {
 func (s *OptNilString) SetFake() {
 	s.Null = true
 	s.Set = true
+}
+
+// SetFake set fake values.
+func (s *OptOpsCmekServiceAccountV1) SetFake() {
+	var elem OpsCmekServiceAccountV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOpsListFiltersV1) SetFake() {
+	var elem OpsListFiltersV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOpsPendingWorkflowTaskV1) SetFake() {
+	var elem OpsPendingWorkflowTaskV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOpsPoolCertificateRotationV1) SetFake() {
+	var elem OpsPoolCertificateRotationV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
+}
+
+// SetFake set fake values.
+func (s *OptOpsServiceAccountKeyRotationV1) SetFake() {
+	var elem OpsServiceAccountKeyRotationV1
+	{
+		elem.SetFake()
+	}
+	s.SetTo(elem)
 }
 
 // SetFake set fake values.
@@ -5075,6 +7301,69 @@ func (s *V1GetExternalClusterUnprocessableEntity) SetFake() {
 }
 
 // SetFake set fake values.
+func (s *V1GetInternalResourceBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceConflict) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceConflict(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceNotImplemented) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceNotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1GetInternalResourceUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1GetInternalResourceUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
 func (s *V1GetMultipleReplicationsByExternalUUIDBadRequest) SetFake() {
 	var unwrapped Error
 	{
@@ -5780,6 +8069,60 @@ func (s *V1ListInterclusterLifsUnauthorized) SetFake() {
 		unwrapped.SetFake()
 	}
 	*s = V1ListInterclusterLifsUnauthorized(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesBadRequest) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesBadRequest(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesForbidden) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesForbidden(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesInternalServerError) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesInternalServerError(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesNotFound) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesNotFound(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesNotImplemented) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesNotImplemented(unwrapped)
+}
+
+// SetFake set fake values.
+func (s *V1ListInternalResourcesUnauthorized) SetFake() {
+	var unwrapped Error
+	{
+		unwrapped.SetFake()
+	}
+	*s = V1ListInternalResourcesUnauthorized(unwrapped)
 }
 
 // SetFake set fake values.

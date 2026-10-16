@@ -41,6 +41,8 @@ tags:
     description: Intercluster LIF operations
   - name: svms
     description: SVM operations
+  - name: internalResources
+    description: Ops inventory - read-only resource reads for Google tooling and SRE
 paths:
   /health:
     get:
@@ -3381,6 +3383,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:get:
+    post:
+      operationId: v1_getInternalResource
+      summary: Get one resource from the ops inventory (read-only, SRE)
+      description: >-
+        Read-only admin API for Google tooling and internal SRE (ops inventory). Returns one row of
+        the given resourceType from the VCP database, as stored, including transitional (CREATING,
+        UPDATING), ERROR and soft-deleted rows (deletedAt is set on deleted rows). The response is an
+        explicit allowlist of reviewed fields; secrets and raw provider errors are never returned.
+        Send exactly one of identity.uuid or identity.name. projectNumber in the path is the GCP
+        project number; use "-" for any project. Get by uuid works with "-". Get by name needs a
+        project number and, where the name is only unique under a parent, that parent: pool for
+        volume, volume for snapshot and replication, backupVault for backup. Get by name is not
+        supported for cmek and job (use uuid). If several live rows match a name the API returns
+        409. With a project number, a resource of another project returns 404. locationId is a
+        region or zone of this deployment, or "-". Like Google Proxy, the region must be this
+        Core's region (else 400) and a zone does not filter rows. For job, the response also
+        carries a read-only Temporal describe of the job's workflow (temporal.enrichmentStatus says
+        whether it succeeded). This API returns the VCP DB row only. For backup, replication,
+        activeDirectory and cmek, Google Proxy merges CVP data into its own responses; that merge is
+        not done here, so CVP-only fields are absent. GCP only in v1; other clouds return 501. POST
+        is used for a typed body; the call is read-only and safe to retry.
+      tags:
+        - internalResources
+      parameters:
+        - $ref: '#/components/parameters/opsProjectNumberPathParameter'
+        - $ref: '#/components/parameters/opsLocationIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsGetResourceRequest_v1'
+      responses:
+        '200':
+          description: The resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsResource_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '409':
+          $ref: '#/components/responses/StandardError-409'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        '501':
+          $ref: '#/components/responses/StandardError-501'
+  /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:list:
+    post:
+      operationId: v1_listInternalResources
+      summary: List resources in the ops inventory (read-only, SRE)
+      description: >-
+        Read-only admin API for Google tooling and internal SRE (ops inventory). Lists rows of one
+        resourceType from the VCP database with keyset paging (ordered by internal id).
+        projectNumber in the path is the GCP project number (digits only) and is required, except
+        for job, where "-" lists across projects. A job list with "-" must send at least one other
+        filter (resource parent, correlationId, state, type or a time filter); admin jobs have no
+        project and are only reachable this way. locationId is a region or zone of this deployment,
+        or "-". Like Google Proxy, the region must be this Core's region (else 400) and a zone does
+        not filter rows. parents are AND-ed, at most one per type; each resourceType allows only its
+        own parent types. timeFilters use the half-open range [from, to) in UTC. filters.name and
+        filters.state are exact matches. includeDeleted (default false) adds soft-deleted rows.
+        pageSize defaults to 10; values above 50 are clamped to 50. nextPageToken is empty on the
+        last page; a token is only valid with the same project and filters. The token is base64
+        and not signed or encrypted: a caller can decode the internal row id it holds. List rows of
+        job carry temporal.enrichmentStatus SKIPPED; use get for the Temporal describe. This API
+        returns VCP DB rows only (no CVP merge). GCP only in v1; other clouds return 501.
+      tags:
+        - internalResources
+      parameters:
+        - $ref: '#/components/parameters/opsProjectNumberPathParameter'
+        - $ref: '#/components/parameters/opsLocationIdPathParameter'
+        - $ref: '#/components/parameters/xCorrelationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsListResourcesRequest_v1'
+      responses:
+        '200':
+          description: One page of resources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsListResourcesResponse_v1'
+        '400':
+          $ref: '#/components/responses/StandardError-400'
+        '401':
+          $ref: '#/components/responses/StandardError-401'
+        '403':
+          $ref: '#/components/responses/StandardError-403'
+        '404':
+          $ref: '#/components/responses/StandardError-404'
+        '500':
+          $ref: '#/components/responses/StandardError-500'
+        '501':
+          $ref: '#/components/responses/StandardError-501'
 components:
   schemas:
     Error:
@@ -6679,6 +6787,676 @@ components:
           maxLength: 36
           minLength: 36
           example: "f943038a-4d96-8115-c2a1-281ea02bd22d"
+    OpsResourceType_v1:
+      type: string
+      description: Resource types readable by the ops inventory API.
+      enum:
+        - pool
+        - volume
+        - snapshot
+        - replication
+        - backup
+        - backupVault
+        - backupPolicy
+        - cmek
+        - activeDirectory
+        - job
+    OpsParentType_v1:
+      type: string
+      description: >-
+        Parent filter types. Each resourceType allows only some of them: pool (cmek,
+        activeDirectory, host), volume (pool, svm, volumePerformanceGroup, backupVault,
+        backupPolicy), snapshot (volume), replication (volume, sourceVolume, destinationVolume),
+        backup (backupVault, volume), job (resource).
+      enum:
+        - pool
+        - volume
+        - svm
+        - volumePerformanceGroup
+        - backupVault
+        - backupPolicy
+        - cmek
+        - activeDirectory
+        - host
+        - sourceVolume
+        - destinationVolume
+        - resource
+    OpsIdentity_v1:
+      type: object
+      additionalProperties: false
+      description: Exactly one of uuid or name.
+      properties:
+        uuid:
+          type: string
+          maxLength: 255
+        name:
+          type: string
+          maxLength: 255
+    OpsParent_v1:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - id
+      properties:
+        type:
+          $ref: '#/components/schemas/OpsParentType_v1'
+        id:
+          type: string
+          description: Parent uuid.
+          minLength: 1
+          maxLength: 255
+    OpsTimeFilter_v1:
+      type: object
+      additionalProperties: false
+      required:
+        - field
+      description: Half-open range [from, to). At least one bound.
+      properties:
+        field:
+          type: string
+          enum:
+            - createdAt
+            - updatedAt
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    OpsListFilters_v1:
+      type: object
+      additionalProperties: false
+      description: Exact-match field filters, AND-ed. correlationId and type are job only. Empty strings are rejected.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        state:
+          type: string
+          minLength: 1
+          maxLength: 64
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        type:
+          type: string
+          minLength: 1
+          maxLength: 128
+    OpsGetResourceRequest_v1:
+      type: object
+      additionalProperties: false
+      required:
+        - resourceType
+        - identity
+      properties:
+        resourceType:
+          $ref: '#/components/schemas/OpsResourceType_v1'
+        identity:
+          $ref: '#/components/schemas/OpsIdentity_v1'
+        parents:
+          type: array
+          maxItems: 5
+          description: Only for get by name, where the name is unique under a parent.
+          items:
+            $ref: '#/components/schemas/OpsParent_v1'
+    OpsListResourcesRequest_v1:
+      type: object
+      additionalProperties: false
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          $ref: '#/components/schemas/OpsResourceType_v1'
+        parents:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/OpsParent_v1'
+        timeFilters:
+          type: array
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/OpsTimeFilter_v1'
+        filters:
+          $ref: '#/components/schemas/OpsListFilters_v1'
+        includeDeleted:
+          type: boolean
+          default: false
+        pageSize:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Default 10. Values above 50 are clamped to 50.
+        pageToken:
+          type: string
+          maxLength: 512
+    OpsListResourcesResponse_v1:
+      type: object
+      required:
+        - resources
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsResource_v1'
+        nextPageToken:
+          type: string
+          description: Empty on the last page.
+    OpsSource_v1:
+      type: string
+      enum:
+        - vcp_db
+        - vcp_db_and_temporal
+    OpsResource_v1:
+      oneOf:
+        - $ref: '#/components/schemas/OpsPool_v1'
+        - $ref: '#/components/schemas/OpsVolume_v1'
+        - $ref: '#/components/schemas/OpsSnapshot_v1'
+        - $ref: '#/components/schemas/OpsReplication_v1'
+        - $ref: '#/components/schemas/OpsBackup_v1'
+        - $ref: '#/components/schemas/OpsBackupVault_v1'
+        - $ref: '#/components/schemas/OpsBackupPolicy_v1'
+        - $ref: '#/components/schemas/OpsCmek_v1'
+        - $ref: '#/components/schemas/OpsActiveDirectory_v1'
+        - $ref: '#/components/schemas/OpsJob_v1'
+      discriminator:
+        propertyName: resourceType
+        mapping:
+          pool: '#/components/schemas/OpsPool_v1'
+          volume: '#/components/schemas/OpsVolume_v1'
+          snapshot: '#/components/schemas/OpsSnapshot_v1'
+          replication: '#/components/schemas/OpsReplication_v1'
+          backup: '#/components/schemas/OpsBackup_v1'
+          backupVault: '#/components/schemas/OpsBackupVault_v1'
+          backupPolicy: '#/components/schemas/OpsBackupPolicy_v1'
+          cmek: '#/components/schemas/OpsCmek_v1'
+          activeDirectory: '#/components/schemas/OpsActiveDirectory_v1'
+          job: '#/components/schemas/OpsJob_v1'
+    OpsPool_v1:
+      type: object
+      description: Reviewed allowlist of persisted pools row fields. No credentials, secret locators or VLM config.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string, description: 'Present only when it is a known catalog phrase.'}
+        stateDetailsWithheld: {type: boolean, description: 'True when stored details were free text and were not returned.'}
+        projectNumber: {type: string}
+        serviceLevel: {type: string}
+        sizeInBytes: {type: integer, format: int64}
+        usedBytes: {type: integer, format: int64}
+        network: {type: string}
+        allowAutoTiering: {type: boolean}
+        qosType: {type: string}
+        deploymentName: {type: string}
+        hostUuid: {type: string}
+        kmsConfigUuid: {type: string}
+        activeDirectoryUuid: {type: string}
+        apiAccessMode: {type: string}
+        largeCapacity: {type: boolean}
+        isPreview: {type: boolean}
+        satisfiesZi: {type: boolean}
+        satisfiesZs: {type: boolean}
+        primaryZone: {type: string}
+        secondaryZone: {type: string}
+        isRegionalHa: {type: boolean}
+        isTrueZonal: {type: boolean}
+        throughputMibps: {type: integer, format: int64}
+        iops: {type: integer, format: int64}
+        workflowId: {type: string}
+        authType: {type: integer, format: int32, description: '1 = password/secret, 2 = certificate.'}
+        credentialConfigured: {type: boolean}
+        certificateRotation: {$ref: '#/components/schemas/OpsPoolCertificateRotation_v1'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsPoolCertificateRotation_v1:
+      type: object
+      description: >-
+        Certificate rotation state of the pool ONTAP credentials, read from pool_credentials.
+        Certificate and secret IDs are never returned; times are parsed from the timestamp that
+        rotation writes at the end of each certificate ID (UTC). Certificates from pool create have
+        no timestamp, so activeCertificateRotatedAt is absent until the first rotation. To see the
+        rotation jobs themselves, list job with parent resource=<pool uuid> and filter type
+        FORCE_POOL_CERTIFICATE_ROTATION or RECONCILE_POOL_CERTIFICATE_AUTHORITY.
+      required: [rotationStaged]
+      properties:
+        activeCertificateRotatedAt: {type: string, format: date-time, description: 'When the active certificate was issued by a rotation.'}
+        rotationStaged: {type: boolean, description: 'True when a new certificate, secret or CA is staged but not promoted yet.'}
+        stagedCertificateCreatedAt: {type: string, format: date-time, description: 'When the staged certificate was created.'}
+        caUri: {type: string, description: 'CA of the active certificate (ca_pool_project/ca_pool/ca).'}
+        stagedCaUri: {type: string, description: 'CA of the staged certificate.'}
+    OpsVolume_v1:
+      type: object
+      description: Reviewed allowlist of persisted volumes row fields. No KMS grant or association objects.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        health: {type: string}
+        projectNumber: {type: string}
+        poolUuid: {type: string}
+        poolName: {type: string}
+        svmUuid: {type: string}
+        svmName: {type: string}
+        volumePerformanceGroupUuid: {type: string}
+        sizeInBytes: {type: integer, format: int64}
+        usedBytes: {type: integer, format: int64}
+        throughput: {type: integer, format: int64}
+        mountPath: {type: string}
+        creationToken: {type: string}
+        protocols: {type: array, items: {type: string}}
+        securityStyle: {type: string}
+        isDataProtection: {type: boolean}
+        isRegionalHa: {type: boolean}
+        zone: {type: string, description: 'Primary zone of the volume pool (pool_attributes.primary_zone).'}
+        secondaryZone: {type: string, description: 'Secondary zone of the pool; only for regional HA pools.'}
+        snapReserve: {type: integer, format: int64}
+        snapshotDirectory: {type: boolean}
+        kerberosEnabled: {type: boolean}
+        ldapEnabled: {type: boolean}
+        autoTieringEnabled: {type: boolean}
+        hotTierSizeGib: {type: integer, format: int64}
+        coldTierSizeGib: {type: integer, format: int64}
+        clonesSharedBytes: {type: integer, format: int64}
+        backupVaultUuid: {type: string}
+        backupPolicyUuid: {type: string}
+        scheduledBackupEnabled: {type: boolean}
+        restrictedActions: {type: array, items: {type: string}}
+        externalUuid: {type: string}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsSnapshot_v1:
+      type: object
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        volumeUuid: {type: string}
+        volumeName: {type: string}
+        type: {type: string}
+        isAppConsistent: {type: boolean}
+        externalUuid: {type: string}
+        sizeInBytes: {type: integer, format: int64}
+        logicalSizeUsedInBytes: {type: integer, format: int64}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsReplication_v1:
+      type: object
+      description: Reviewed allowlist. No peering passphrases or peer commands; raw transfer errors are reported as presence flags only.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        volumeUuid: {type: string}
+        volumeName: {type: string}
+        mirrorState: {type: string}
+        relationshipStatus: {type: string}
+        healthy: {type: boolean}
+        unhealthyReasonPresent: {type: boolean}
+        lastTransferErrorPresent: {type: boolean}
+        lagTime: {type: integer, format: int64}
+        totalProgress: {type: integer, format: int64}
+        totalTransferBytes: {type: integer, format: int64}
+        totalTransferTimeSecs: {type: integer, format: int64}
+        lastTransferSize: {type: integer, format: int64}
+        lastTransferDuration: {type: integer, format: int64}
+        lastTransferEndTime: {type: string, format: date-time}
+        progressLastUpdated: {type: string, format: date-time}
+        lastUpdatedFromOntap: {type: string, format: date-time}
+        endpointType: {type: string}
+        replicationType: {type: string}
+        replicationSchedule: {type: string}
+        sourcePoolUuid: {type: string}
+        sourceVolumeUuid: {type: string}
+        sourceVolumeName: {type: string}
+        sourceSvmName: {type: string}
+        sourceLocation: {type: string}
+        destinationPoolUuid: {type: string}
+        destinationVolumeUuid: {type: string}
+        destinationVolumeName: {type: string}
+        destinationSvmName: {type: string}
+        destinationLocation: {type: string}
+        externalUuid: {type: string}
+        isHybrid: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsBackup_v1:
+      type: object
+      description: projectNumber is the owner of the backup vault; the source volume may belong to another project.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        backupVaultUuid: {type: string}
+        backupVaultName: {type: string}
+        volumeUuid: {type: string}
+        volumeName: {type: string}
+        sourceVolumeZone: {type: string, description: 'Zone of the source volume pool at backup time; empty for regional HA.'}
+        type: {type: string}
+        scheduleTag: {type: string}
+        sizeInBytes: {type: integer, format: int64}
+        latestLogicalBackupSize: {type: integer, format: int64}
+        externalUuid: {type: string}
+        backupPolicyName: {type: string}
+        snapshotName: {type: string}
+        completionTime: {type: string}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsBackupVault_v1:
+      type: object
+      description: Reviewed allowlist. No HMAC key id or secret locator.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string, description: 'Stored as life_cycle_state.'}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        backupVaultType: {type: string}
+        serviceType: {type: string}
+        backupRegionName: {type: string}
+        sourceRegionName: {type: string}
+        crossRegionBackupVaultName: {type: string}
+        externalUuid: {type: string}
+        kmsConfigResourcePath: {type: string}
+        encryptionState: {type: string}
+        backupsPrimaryKeyVersion: {type: string}
+        bucketNames: {type: array, items: {type: string}}
+        backupMinimumEnforcedRetentionDuration: {type: integer, format: int64}
+        isDailyBackupImmutable: {type: boolean}
+        isWeeklyBackupImmutable: {type: boolean}
+        isMonthlyBackupImmutable: {type: boolean}
+        isAdhocBackupImmutable: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsBackupPolicy_v1:
+      type: object
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string, description: 'Stored as life_cycle_state.'}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        dailyBackupsToKeep: {type: integer, format: int64}
+        weeklyBackupsToKeep: {type: integer, format: int64}
+        monthlyBackupsToKeep: {type: integer, format: int64}
+        policyEnabled: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsCmek_v1:
+      type: object
+      description: Reviewed allowlist. No KMS grant, service-account key data or SDE diagnostics. serviceAccount carries the linked service account and its key rotation state.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        resourceId: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        keyRing: {type: string}
+        keyRingLocation: {type: string}
+        keyName: {type: string}
+        keyProjectId: {type: string}
+        customerProjectId: {type: string}
+        creationMode: {type: string}
+        serviceAccountEmail: {type: string}
+        sdeHealthy: {type: boolean}
+        serviceAccount: {$ref: '#/components/schemas/OpsCmekServiceAccount_v1'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsCmekServiceAccount_v1:
+      type: object
+      description: >-
+        The VCP service account linked to the KMS config (service_accounts row). Reviewed
+        allowlist: the encrypted key data and service_account_password_location are never
+        returned. Absent when the KMS config has no linked service account (for example SDE-created).
+      required: [uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        uuid: {type: string}
+        name: {type: string}
+        email: {type: string}
+        serviceName: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        keyRotation: {$ref: '#/components/schemas/OpsServiceAccountKeyRotation_v1'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsServiceAccountKeyRotation_v1:
+      type: object
+      description: >-
+        Key rotation state from service_account_attributes.keys. primaryKeyCreatedAt is when the
+        current key was created, which is when the last rotation started; the time the key became
+        primary is not stored. keys is empty until the first rotation. A key added as the old key
+        during the first rotation carries the service account creation time.
+      required: [rotationInProgress, keysPendingDeletion]
+      properties:
+        primaryKeyId: {type: string}
+        primaryKeyCreatedAt: {type: string, format: date-time}
+        rotationInProgress: {type: boolean, description: 'True when an active key exists that is not primary yet.'}
+        keysPendingDeletion: {type: integer, format: int32, description: 'Old keys marked for deletion but not yet deleted from GCP.'}
+        keys:
+          type: array
+          items: {$ref: '#/components/schemas/OpsServiceAccountKey_v1'}
+    OpsServiceAccountKey_v1:
+      type: object
+      description: One service account key. The key ID is the GCP key ID, not key material.
+      required: [keyId, isPrimary, isActive]
+      properties:
+        keyId: {type: string}
+        isPrimary: {type: boolean}
+        isActive: {type: boolean}
+        createdAt: {type: string, format: date-time}
+    OpsActiveDirectory_v1:
+      type: object
+      description: Reviewed allowlist. No password or credential path; the server root CA is reported by SHA-256 fingerprint only.
+      required: [resourceType, source, uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        uuid: {type: string}
+        name: {type: string}
+        description: {type: string}
+        state: {type: string}
+        stateDetails: {type: string}
+        stateDetailsWithheld: {type: boolean}
+        projectNumber: {type: string}
+        username: {type: string}
+        domain: {type: string}
+        dns: {type: string}
+        netBios: {type: string}
+        changeId: {type: string}
+        organizationalUnit: {type: string}
+        site: {type: string}
+        kdcIp: {type: string}
+        kdcHostname: {type: string}
+        userDn: {type: string}
+        groupDn: {type: string}
+        groupMembershipFilter: {type: string}
+        preferredServersForLdapClient: {type: string}
+        primaryAd: {type: boolean}
+        managedAd: {type: boolean}
+        aesEncryption: {type: boolean}
+        encryptDcConnections: {type: boolean}
+        ldapSigning: {type: boolean}
+        ldapOverTls: {type: boolean}
+        allowLocalNfsUsersWithLdap: {type: boolean}
+        svmIds: {type: array, items: {type: string}}
+        serverRootCaCertificateSha256: {type: string}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsJob_v1:
+      type: object
+      required: [resourceType, source, job, temporal]
+      properties:
+        resourceType: {type: string}
+        source: {$ref: '#/components/schemas/OpsSource_v1'}
+        job: {$ref: '#/components/schemas/OpsJobDetails_v1'}
+        temporal: {$ref: '#/components/schemas/OpsJobTemporal_v1'}
+    OpsJobDetails_v1:
+      type: object
+      description: Reviewed allowlist of the jobs row. No payloads; raw error text is replaced by the catalog message for trackingId.
+      required: [uuid, createdAt, updatedAt, deletedAt]
+      properties:
+        uuid: {type: string}
+        type: {type: string}
+        state: {type: string}
+        trackingId: {type: integer, format: int64}
+        errorMessage: {type: string, description: 'Catalog message for trackingId, when known.'}
+        correlationId: {type: string}
+        requestId: {type: string}
+        resourceUuid: {type: string}
+        resourceName: {type: string}
+        poolUuid: {type: string}
+        workflowId: {type: string}
+        isAdminJob: {type: boolean}
+        projectNumber: {type: string}
+        scheduledAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time, nullable: true}
+    OpsJobTemporal_v1:
+      type: object
+      description: >-
+        Read-only Temporal describe of the job workflow (execution metadata only). No input,
+        result, memo, search attribute values, user metadata, heartbeat details, failure messages
+        or history events; completed activities are not shown because they live only in the
+        history. Durations are seconds. stateMismatch is only set when enrichmentStatus is
+        COMPLETE.
+      required: [enrichmentStatus]
+      properties:
+        enrichmentStatus:
+          type: string
+          enum: [COMPLETE, SKIPPED, NOT_FOUND, QUEUED_IN_SEQUENCER, UNAVAILABLE]
+        reason: {type: string}
+        workflowId: {type: string}
+        runId: {type: string}
+        workflowType: {type: string}
+        taskQueue: {type: string}
+        status: {type: string}
+        startTime: {type: string, format: date-time}
+        executionTime: {type: string, format: date-time}
+        closeTime: {type: string, format: date-time, nullable: true}
+        historyLength: {type: integer, format: int64}
+        historySizeBytes: {type: integer, format: int64}
+        stateTransitionCount: {type: integer, format: int64}
+        executionDurationSeconds: {type: number, format: double, description: 'Set when the run is closed.'}
+        firstRunId: {type: string}
+        parentWorkflowId: {type: string}
+        parentRunId: {type: string}
+        rootWorkflowId: {type: string}
+        rootRunId: {type: string}
+        workerDeploymentName: {type: string}
+        buildId: {type: string, description: 'Worker build that runs the workflow (deployment version, else assigned build id, else last worker stamp).'}
+        versioningBehavior: {type: string}
+        workflowExecutionTimeoutSeconds: {type: number, format: double}
+        workflowRunTimeoutSeconds: {type: number, format: double}
+        workflowTaskTimeoutSeconds: {type: number, format: double}
+        executionExpirationTime: {type: string, format: date-time}
+        runExpirationTime: {type: string, format: date-time}
+        cancelRequested: {type: boolean}
+        lastResetTime: {type: string, format: date-time}
+        pendingWorkflowTask: {$ref: '#/components/schemas/OpsPendingWorkflowTask_v1'}
+        pendingActivities:
+          type: array
+          items: {$ref: '#/components/schemas/OpsPendingActivity_v1'}
+        pendingChildren:
+          type: array
+          items: {$ref: '#/components/schemas/OpsPendingChild_v1'}
+        stateMismatch: {type: boolean}
+        sequenceWorkflowId: {type: string}
+        sequenceWorkflowStatus: {type: string}
+    OpsPendingWorkflowTask_v1:
+      type: object
+      description: A workflow task that is scheduled or started but not completed. A high attempt means workers keep failing it.
+      properties:
+        state: {type: string}
+        attempt: {type: integer, format: int32}
+        scheduledTime: {type: string, format: date-time}
+        originalScheduledTime: {type: string, format: date-time}
+        startedTime: {type: string, format: date-time}
+    OpsPendingActivity_v1:
+      type: object
+      properties:
+        activityId: {type: string}
+        activityType: {type: string}
+        state: {type: string}
+        attempt: {type: integer, format: int32}
+        maximumAttempts: {type: integer, format: int32, description: '0 means no limit.'}
+        scheduledTime: {type: string, format: date-time}
+        lastStartedTime: {type: string, format: date-time}
+        lastHeartbeatTime: {type: string, format: date-time}
+        lastAttemptCompleteTime: {type: string, format: date-time}
+        nextAttemptScheduleTime: {type: string, format: date-time, description: 'When the next retry starts; set while in retry backoff.'}
+        currentRetryIntervalSeconds: {type: number, format: double}
+        expirationTime: {type: string, format: date-time}
+        paused: {type: boolean}
+        lastWorkerIdentity: {type: string, description: 'Temporal worker identity, usually pid@host.'}
+        lastFailureType: {type: string}
+    OpsPendingChild_v1:
+      type: object
+      properties:
+        workflowId: {type: string}
+        runId: {type: string}
+        workflowType: {type: string}
+        parentClosePolicy: {type: string}
   responses:
     StandardError-400:
       description: Bad request
@@ -6795,6 +7573,23 @@ components:
             code: 503
             message: Service is currently unavailable
   parameters:
+    opsProjectNumberPathParameter:
+      name: projectNumber
+      in: path
+      description: GCP project number (digits only, not the project id), or "-" for any project.
+      required: true
+      schema:
+        type: string
+        maxLength: 32
+        pattern: '^(-|[0-9]+)$'
+    opsLocationIdPathParameter:
+      name: locationId
+      in: path
+      description: A region or zone of this deployment, or "-". A zone does not filter rows.
+      required: true
+      schema:
+        type: string
+        maxLength: 64
     projectNumberPathParameter:
       name: projectNumber
       in: path

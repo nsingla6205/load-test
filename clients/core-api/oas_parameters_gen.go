@@ -226,6 +226,16 @@ type V1GetExternalClusterParams struct {
 	ExternalClusterId string
 }
 
+// V1GetInternalResourceParams is parameters of v1_getInternalResource operation.
+type V1GetInternalResourceParams struct {
+	// GCP project number (digits only, not the project id), or "-" for any project.
+	ProjectNumber string
+	// A region or zone of this deployment, or "-". A zone does not filter rows.
+	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
+}
+
 // V1GetMultipleReplicationsByExternalUUIDParams is parameters of v1_getMultipleReplicationsByExternalUUID operation.
 type V1GetMultipleReplicationsByExternalUUIDParams struct {
 	// Correlation identifier.
@@ -330,6 +340,16 @@ type V1ListInterclusterLifsParams struct {
 	AccountUUID OptString
 	// UUID of the IP range to which the intercluster LIF belongs.
 	IpRangeUUID OptString
+}
+
+// V1ListInternalResourcesParams is parameters of v1_listInternalResources operation.
+type V1ListInternalResourcesParams struct {
+	// GCP project number (digits only, not the project id), or "-" for any project.
+	ProjectNumber string
+	// A region or zone of this deployment, or "-". A zone does not filter rows.
+	LocationId string
+	// Correlation identifier.
+	XCorrelationID OptString
 }
 
 // V1ListPoolNasLifsParams is parameters of v1_listPoolNasLifs operation.

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
+	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/common"
@@ -24,6 +25,7 @@ import (
 	_ "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/drivers/postgres"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp/readstore"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
@@ -32,6 +34,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/httphelpers"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	api "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/handlers"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/handlers/opsinventory"
 	coregenserver "github.com/vcp-vsa-control-Plane/vsa-control-plane/vcp-core/servergen"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/worker/metrics"
 	workflowengine "github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/temporal"
@@ -124,7 +127,10 @@ func main() {
 	// Create GCP proxy server and inject required dependencies
 	orch := factory.GetOrchestratorForProvider(dbCon, workflowClient.GetTemporalClient())
 	newHandler := api.NewHandler(orch)
-	oasserver, err := coregenserver.NewServer(newHandler)
+	readStore := readstore.New(dbCon.DB())
+	newHandler.OpsInventory = opsinventory.NewHandler(readStore, opsinventory.NewReaders(readStore, workflowClient.GetTemporalClient()))
+	oasserver, err := coregenserver.NewServer(newHandler,
+		coregenserver.WithErrorHandler(newHandler.OpsInventory.ErrorHandler(ogenerrors.DefaultErrorHandler)))
 	if err != nil {
 		logger.Error("Failed to create server", "error", err.Error())
 		os.Exit(1)

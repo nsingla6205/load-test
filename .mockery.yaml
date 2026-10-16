@@ -105,6 +105,12 @@ packages:
       MigratorInterface:
       DataStore:
       Transaction:
+  github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp/readstore:
+    config:
+      inpackage: True
+      dir: "{{.InterfaceDir}}"
+    interfaces:
+      ReadStore:
   github.com/vcp-vsa-control-Plane/vsa-control-plane/database/metrics:
     config:
       inpackage: True

@@ -4929,6 +4929,51 @@ func (s *NasLifIPUpdateV1) SetIpAddress(val string) {
 	s.IpAddress = val
 }
 
+// NewNilDateTime returns new NilDateTime with value set to v.
+func NewNilDateTime(v time.Time) NilDateTime {
+	return NilDateTime{
+		Value: v,
+	}
+}
+
+// NilDateTime is nullable time.Time.
+type NilDateTime struct {
+	Value time.Time
+	Null  bool
+}
+
+// SetTo sets value to v.
+func (o *NilDateTime) SetTo(v time.Time) {
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o NilDateTime) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *NilDateTime) SetToNull() {
+	o.Null = true
+	var v time.Time
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o NilDateTime) Get() (v time.Time, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o NilDateTime) Or(d time.Time) time.Time {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // Ref: #/components/schemas/OntapCredentials_v1
 type OntapCredentialsV1 struct {
 	// The secret ID for authentication.
@@ -5159,6 +5204,5124 @@ func (*OperationV1) v1RefreshRbacForExpertModePoolsRes()    {}
 func (*OperationV1) v1SplitStartVolumeRes()                 {}
 func (*OperationV1) v1SplitStopVolumeRes()                  {}
 func (*OperationV1) v1UpdatePoolRes()                       {}
+
+// Reviewed allowlist. No password or credential path; the server root CA is reported by SHA-256
+// fingerprint only.
+// Ref: #/components/schemas/OpsActiveDirectory_v1
+type OpsActiveDirectoryV1 struct {
+	ResourceType                  string      `json:"resourceType"`
+	Source                        OpsSourceV1 `json:"source"`
+	UUID                          string      `json:"uuid"`
+	Name                          OptString   `json:"name"`
+	Description                   OptString   `json:"description"`
+	State                         OptString   `json:"state"`
+	StateDetails                  OptString   `json:"stateDetails"`
+	StateDetailsWithheld          OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber                 OptString   `json:"projectNumber"`
+	Username                      OptString   `json:"username"`
+	Domain                        OptString   `json:"domain"`
+	DNS                           OptString   `json:"dns"`
+	NetBios                       OptString   `json:"netBios"`
+	ChangeId                      OptString   `json:"changeId"`
+	OrganizationalUnit            OptString   `json:"organizationalUnit"`
+	Site                          OptString   `json:"site"`
+	KdcIp                         OptString   `json:"kdcIp"`
+	KdcHostname                   OptString   `json:"kdcHostname"`
+	UserDn                        OptString   `json:"userDn"`
+	GroupDn                       OptString   `json:"groupDn"`
+	GroupMembershipFilter         OptString   `json:"groupMembershipFilter"`
+	PreferredServersForLdapClient OptString   `json:"preferredServersForLdapClient"`
+	PrimaryAd                     OptBool     `json:"primaryAd"`
+	ManagedAd                     OptBool     `json:"managedAd"`
+	AesEncryption                 OptBool     `json:"aesEncryption"`
+	EncryptDcConnections          OptBool     `json:"encryptDcConnections"`
+	LdapSigning                   OptBool     `json:"ldapSigning"`
+	LdapOverTls                   OptBool     `json:"ldapOverTls"`
+	AllowLocalNfsUsersWithLdap    OptBool     `json:"allowLocalNfsUsersWithLdap"`
+	SvmIds                        []string    `json:"svmIds"`
+	ServerRootCaCertificateSha256 OptString   `json:"serverRootCaCertificateSha256"`
+	CreatedAt                     time.Time   `json:"createdAt"`
+	UpdatedAt                     time.Time   `json:"updatedAt"`
+	DeletedAt                     NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsActiveDirectoryV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsActiveDirectoryV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsActiveDirectoryV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsActiveDirectoryV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsActiveDirectoryV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsActiveDirectoryV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsActiveDirectoryV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsActiveDirectoryV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsActiveDirectoryV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetUsername returns the value of Username.
+func (s *OpsActiveDirectoryV1) GetUsername() OptString {
+	return s.Username
+}
+
+// GetDomain returns the value of Domain.
+func (s *OpsActiveDirectoryV1) GetDomain() OptString {
+	return s.Domain
+}
+
+// GetDNS returns the value of DNS.
+func (s *OpsActiveDirectoryV1) GetDNS() OptString {
+	return s.DNS
+}
+
+// GetNetBios returns the value of NetBios.
+func (s *OpsActiveDirectoryV1) GetNetBios() OptString {
+	return s.NetBios
+}
+
+// GetChangeId returns the value of ChangeId.
+func (s *OpsActiveDirectoryV1) GetChangeId() OptString {
+	return s.ChangeId
+}
+
+// GetOrganizationalUnit returns the value of OrganizationalUnit.
+func (s *OpsActiveDirectoryV1) GetOrganizationalUnit() OptString {
+	return s.OrganizationalUnit
+}
+
+// GetSite returns the value of Site.
+func (s *OpsActiveDirectoryV1) GetSite() OptString {
+	return s.Site
+}
+
+// GetKdcIp returns the value of KdcIp.
+func (s *OpsActiveDirectoryV1) GetKdcIp() OptString {
+	return s.KdcIp
+}
+
+// GetKdcHostname returns the value of KdcHostname.
+func (s *OpsActiveDirectoryV1) GetKdcHostname() OptString {
+	return s.KdcHostname
+}
+
+// GetUserDn returns the value of UserDn.
+func (s *OpsActiveDirectoryV1) GetUserDn() OptString {
+	return s.UserDn
+}
+
+// GetGroupDn returns the value of GroupDn.
+func (s *OpsActiveDirectoryV1) GetGroupDn() OptString {
+	return s.GroupDn
+}
+
+// GetGroupMembershipFilter returns the value of GroupMembershipFilter.
+func (s *OpsActiveDirectoryV1) GetGroupMembershipFilter() OptString {
+	return s.GroupMembershipFilter
+}
+
+// GetPreferredServersForLdapClient returns the value of PreferredServersForLdapClient.
+func (s *OpsActiveDirectoryV1) GetPreferredServersForLdapClient() OptString {
+	return s.PreferredServersForLdapClient
+}
+
+// GetPrimaryAd returns the value of PrimaryAd.
+func (s *OpsActiveDirectoryV1) GetPrimaryAd() OptBool {
+	return s.PrimaryAd
+}
+
+// GetManagedAd returns the value of ManagedAd.
+func (s *OpsActiveDirectoryV1) GetManagedAd() OptBool {
+	return s.ManagedAd
+}
+
+// GetAesEncryption returns the value of AesEncryption.
+func (s *OpsActiveDirectoryV1) GetAesEncryption() OptBool {
+	return s.AesEncryption
+}
+
+// GetEncryptDcConnections returns the value of EncryptDcConnections.
+func (s *OpsActiveDirectoryV1) GetEncryptDcConnections() OptBool {
+	return s.EncryptDcConnections
+}
+
+// GetLdapSigning returns the value of LdapSigning.
+func (s *OpsActiveDirectoryV1) GetLdapSigning() OptBool {
+	return s.LdapSigning
+}
+
+// GetLdapOverTls returns the value of LdapOverTls.
+func (s *OpsActiveDirectoryV1) GetLdapOverTls() OptBool {
+	return s.LdapOverTls
+}
+
+// GetAllowLocalNfsUsersWithLdap returns the value of AllowLocalNfsUsersWithLdap.
+func (s *OpsActiveDirectoryV1) GetAllowLocalNfsUsersWithLdap() OptBool {
+	return s.AllowLocalNfsUsersWithLdap
+}
+
+// GetSvmIds returns the value of SvmIds.
+func (s *OpsActiveDirectoryV1) GetSvmIds() []string {
+	return s.SvmIds
+}
+
+// GetServerRootCaCertificateSha256 returns the value of ServerRootCaCertificateSha256.
+func (s *OpsActiveDirectoryV1) GetServerRootCaCertificateSha256() OptString {
+	return s.ServerRootCaCertificateSha256
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsActiveDirectoryV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsActiveDirectoryV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsActiveDirectoryV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsActiveDirectoryV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsActiveDirectoryV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsActiveDirectoryV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsActiveDirectoryV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsActiveDirectoryV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsActiveDirectoryV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsActiveDirectoryV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsActiveDirectoryV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsActiveDirectoryV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetUsername sets the value of Username.
+func (s *OpsActiveDirectoryV1) SetUsername(val OptString) {
+	s.Username = val
+}
+
+// SetDomain sets the value of Domain.
+func (s *OpsActiveDirectoryV1) SetDomain(val OptString) {
+	s.Domain = val
+}
+
+// SetDNS sets the value of DNS.
+func (s *OpsActiveDirectoryV1) SetDNS(val OptString) {
+	s.DNS = val
+}
+
+// SetNetBios sets the value of NetBios.
+func (s *OpsActiveDirectoryV1) SetNetBios(val OptString) {
+	s.NetBios = val
+}
+
+// SetChangeId sets the value of ChangeId.
+func (s *OpsActiveDirectoryV1) SetChangeId(val OptString) {
+	s.ChangeId = val
+}
+
+// SetOrganizationalUnit sets the value of OrganizationalUnit.
+func (s *OpsActiveDirectoryV1) SetOrganizationalUnit(val OptString) {
+	s.OrganizationalUnit = val
+}
+
+// SetSite sets the value of Site.
+func (s *OpsActiveDirectoryV1) SetSite(val OptString) {
+	s.Site = val
+}
+
+// SetKdcIp sets the value of KdcIp.
+func (s *OpsActiveDirectoryV1) SetKdcIp(val OptString) {
+	s.KdcIp = val
+}
+
+// SetKdcHostname sets the value of KdcHostname.
+func (s *OpsActiveDirectoryV1) SetKdcHostname(val OptString) {
+	s.KdcHostname = val
+}
+
+// SetUserDn sets the value of UserDn.
+func (s *OpsActiveDirectoryV1) SetUserDn(val OptString) {
+	s.UserDn = val
+}
+
+// SetGroupDn sets the value of GroupDn.
+func (s *OpsActiveDirectoryV1) SetGroupDn(val OptString) {
+	s.GroupDn = val
+}
+
+// SetGroupMembershipFilter sets the value of GroupMembershipFilter.
+func (s *OpsActiveDirectoryV1) SetGroupMembershipFilter(val OptString) {
+	s.GroupMembershipFilter = val
+}
+
+// SetPreferredServersForLdapClient sets the value of PreferredServersForLdapClient.
+func (s *OpsActiveDirectoryV1) SetPreferredServersForLdapClient(val OptString) {
+	s.PreferredServersForLdapClient = val
+}
+
+// SetPrimaryAd sets the value of PrimaryAd.
+func (s *OpsActiveDirectoryV1) SetPrimaryAd(val OptBool) {
+	s.PrimaryAd = val
+}
+
+// SetManagedAd sets the value of ManagedAd.
+func (s *OpsActiveDirectoryV1) SetManagedAd(val OptBool) {
+	s.ManagedAd = val
+}
+
+// SetAesEncryption sets the value of AesEncryption.
+func (s *OpsActiveDirectoryV1) SetAesEncryption(val OptBool) {
+	s.AesEncryption = val
+}
+
+// SetEncryptDcConnections sets the value of EncryptDcConnections.
+func (s *OpsActiveDirectoryV1) SetEncryptDcConnections(val OptBool) {
+	s.EncryptDcConnections = val
+}
+
+// SetLdapSigning sets the value of LdapSigning.
+func (s *OpsActiveDirectoryV1) SetLdapSigning(val OptBool) {
+	s.LdapSigning = val
+}
+
+// SetLdapOverTls sets the value of LdapOverTls.
+func (s *OpsActiveDirectoryV1) SetLdapOverTls(val OptBool) {
+	s.LdapOverTls = val
+}
+
+// SetAllowLocalNfsUsersWithLdap sets the value of AllowLocalNfsUsersWithLdap.
+func (s *OpsActiveDirectoryV1) SetAllowLocalNfsUsersWithLdap(val OptBool) {
+	s.AllowLocalNfsUsersWithLdap = val
+}
+
+// SetSvmIds sets the value of SvmIds.
+func (s *OpsActiveDirectoryV1) SetSvmIds(val []string) {
+	s.SvmIds = val
+}
+
+// SetServerRootCaCertificateSha256 sets the value of ServerRootCaCertificateSha256.
+func (s *OpsActiveDirectoryV1) SetServerRootCaCertificateSha256(val OptString) {
+	s.ServerRootCaCertificateSha256 = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsActiveDirectoryV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsActiveDirectoryV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsActiveDirectoryV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Ref: #/components/schemas/OpsBackupPolicy_v1
+type OpsBackupPolicyV1 struct {
+	ResourceType string      `json:"resourceType"`
+	Source       OpsSourceV1 `json:"source"`
+	UUID         string      `json:"uuid"`
+	Name         OptString   `json:"name"`
+	Description  OptString   `json:"description"`
+	// Stored as life_cycle_state.
+	State                OptString   `json:"state"`
+	StateDetails         OptString   `json:"stateDetails"`
+	StateDetailsWithheld OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber        OptString   `json:"projectNumber"`
+	DailyBackupsToKeep   OptInt64    `json:"dailyBackupsToKeep"`
+	WeeklyBackupsToKeep  OptInt64    `json:"weeklyBackupsToKeep"`
+	MonthlyBackupsToKeep OptInt64    `json:"monthlyBackupsToKeep"`
+	PolicyEnabled        OptBool     `json:"policyEnabled"`
+	CreatedAt            time.Time   `json:"createdAt"`
+	UpdatedAt            time.Time   `json:"updatedAt"`
+	DeletedAt            NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsBackupPolicyV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsBackupPolicyV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsBackupPolicyV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsBackupPolicyV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsBackupPolicyV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsBackupPolicyV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsBackupPolicyV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsBackupPolicyV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsBackupPolicyV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetDailyBackupsToKeep returns the value of DailyBackupsToKeep.
+func (s *OpsBackupPolicyV1) GetDailyBackupsToKeep() OptInt64 {
+	return s.DailyBackupsToKeep
+}
+
+// GetWeeklyBackupsToKeep returns the value of WeeklyBackupsToKeep.
+func (s *OpsBackupPolicyV1) GetWeeklyBackupsToKeep() OptInt64 {
+	return s.WeeklyBackupsToKeep
+}
+
+// GetMonthlyBackupsToKeep returns the value of MonthlyBackupsToKeep.
+func (s *OpsBackupPolicyV1) GetMonthlyBackupsToKeep() OptInt64 {
+	return s.MonthlyBackupsToKeep
+}
+
+// GetPolicyEnabled returns the value of PolicyEnabled.
+func (s *OpsBackupPolicyV1) GetPolicyEnabled() OptBool {
+	return s.PolicyEnabled
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsBackupPolicyV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsBackupPolicyV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsBackupPolicyV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsBackupPolicyV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsBackupPolicyV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsBackupPolicyV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsBackupPolicyV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsBackupPolicyV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsBackupPolicyV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsBackupPolicyV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsBackupPolicyV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsBackupPolicyV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetDailyBackupsToKeep sets the value of DailyBackupsToKeep.
+func (s *OpsBackupPolicyV1) SetDailyBackupsToKeep(val OptInt64) {
+	s.DailyBackupsToKeep = val
+}
+
+// SetWeeklyBackupsToKeep sets the value of WeeklyBackupsToKeep.
+func (s *OpsBackupPolicyV1) SetWeeklyBackupsToKeep(val OptInt64) {
+	s.WeeklyBackupsToKeep = val
+}
+
+// SetMonthlyBackupsToKeep sets the value of MonthlyBackupsToKeep.
+func (s *OpsBackupPolicyV1) SetMonthlyBackupsToKeep(val OptInt64) {
+	s.MonthlyBackupsToKeep = val
+}
+
+// SetPolicyEnabled sets the value of PolicyEnabled.
+func (s *OpsBackupPolicyV1) SetPolicyEnabled(val OptBool) {
+	s.PolicyEnabled = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsBackupPolicyV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsBackupPolicyV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsBackupPolicyV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// ProjectNumber is the owner of the backup vault; the source volume may belong to another project.
+// Ref: #/components/schemas/OpsBackup_v1
+type OpsBackupV1 struct {
+	ResourceType         string      `json:"resourceType"`
+	Source               OpsSourceV1 `json:"source"`
+	UUID                 string      `json:"uuid"`
+	Name                 OptString   `json:"name"`
+	Description          OptString   `json:"description"`
+	State                OptString   `json:"state"`
+	StateDetails         OptString   `json:"stateDetails"`
+	StateDetailsWithheld OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber        OptString   `json:"projectNumber"`
+	BackupVaultUuid      OptString   `json:"backupVaultUuid"`
+	BackupVaultName      OptString   `json:"backupVaultName"`
+	VolumeUuid           OptString   `json:"volumeUuid"`
+	VolumeName           OptString   `json:"volumeName"`
+	// Zone of the source volume pool at backup time; empty for regional HA.
+	SourceVolumeZone        OptString   `json:"sourceVolumeZone"`
+	Type                    OptString   `json:"type"`
+	ScheduleTag             OptString   `json:"scheduleTag"`
+	SizeInBytes             OptInt64    `json:"sizeInBytes"`
+	LatestLogicalBackupSize OptInt64    `json:"latestLogicalBackupSize"`
+	ExternalUuid            OptString   `json:"externalUuid"`
+	BackupPolicyName        OptString   `json:"backupPolicyName"`
+	SnapshotName            OptString   `json:"snapshotName"`
+	CompletionTime          OptString   `json:"completionTime"`
+	CreatedAt               time.Time   `json:"createdAt"`
+	UpdatedAt               time.Time   `json:"updatedAt"`
+	DeletedAt               NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsBackupV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsBackupV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsBackupV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsBackupV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsBackupV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsBackupV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsBackupV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsBackupV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsBackupV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetBackupVaultUuid returns the value of BackupVaultUuid.
+func (s *OpsBackupV1) GetBackupVaultUuid() OptString {
+	return s.BackupVaultUuid
+}
+
+// GetBackupVaultName returns the value of BackupVaultName.
+func (s *OpsBackupV1) GetBackupVaultName() OptString {
+	return s.BackupVaultName
+}
+
+// GetVolumeUuid returns the value of VolumeUuid.
+func (s *OpsBackupV1) GetVolumeUuid() OptString {
+	return s.VolumeUuid
+}
+
+// GetVolumeName returns the value of VolumeName.
+func (s *OpsBackupV1) GetVolumeName() OptString {
+	return s.VolumeName
+}
+
+// GetSourceVolumeZone returns the value of SourceVolumeZone.
+func (s *OpsBackupV1) GetSourceVolumeZone() OptString {
+	return s.SourceVolumeZone
+}
+
+// GetType returns the value of Type.
+func (s *OpsBackupV1) GetType() OptString {
+	return s.Type
+}
+
+// GetScheduleTag returns the value of ScheduleTag.
+func (s *OpsBackupV1) GetScheduleTag() OptString {
+	return s.ScheduleTag
+}
+
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *OpsBackupV1) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
+}
+
+// GetLatestLogicalBackupSize returns the value of LatestLogicalBackupSize.
+func (s *OpsBackupV1) GetLatestLogicalBackupSize() OptInt64 {
+	return s.LatestLogicalBackupSize
+}
+
+// GetExternalUuid returns the value of ExternalUuid.
+func (s *OpsBackupV1) GetExternalUuid() OptString {
+	return s.ExternalUuid
+}
+
+// GetBackupPolicyName returns the value of BackupPolicyName.
+func (s *OpsBackupV1) GetBackupPolicyName() OptString {
+	return s.BackupPolicyName
+}
+
+// GetSnapshotName returns the value of SnapshotName.
+func (s *OpsBackupV1) GetSnapshotName() OptString {
+	return s.SnapshotName
+}
+
+// GetCompletionTime returns the value of CompletionTime.
+func (s *OpsBackupV1) GetCompletionTime() OptString {
+	return s.CompletionTime
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsBackupV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsBackupV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsBackupV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsBackupV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsBackupV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsBackupV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsBackupV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsBackupV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsBackupV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsBackupV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsBackupV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsBackupV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetBackupVaultUuid sets the value of BackupVaultUuid.
+func (s *OpsBackupV1) SetBackupVaultUuid(val OptString) {
+	s.BackupVaultUuid = val
+}
+
+// SetBackupVaultName sets the value of BackupVaultName.
+func (s *OpsBackupV1) SetBackupVaultName(val OptString) {
+	s.BackupVaultName = val
+}
+
+// SetVolumeUuid sets the value of VolumeUuid.
+func (s *OpsBackupV1) SetVolumeUuid(val OptString) {
+	s.VolumeUuid = val
+}
+
+// SetVolumeName sets the value of VolumeName.
+func (s *OpsBackupV1) SetVolumeName(val OptString) {
+	s.VolumeName = val
+}
+
+// SetSourceVolumeZone sets the value of SourceVolumeZone.
+func (s *OpsBackupV1) SetSourceVolumeZone(val OptString) {
+	s.SourceVolumeZone = val
+}
+
+// SetType sets the value of Type.
+func (s *OpsBackupV1) SetType(val OptString) {
+	s.Type = val
+}
+
+// SetScheduleTag sets the value of ScheduleTag.
+func (s *OpsBackupV1) SetScheduleTag(val OptString) {
+	s.ScheduleTag = val
+}
+
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *OpsBackupV1) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
+}
+
+// SetLatestLogicalBackupSize sets the value of LatestLogicalBackupSize.
+func (s *OpsBackupV1) SetLatestLogicalBackupSize(val OptInt64) {
+	s.LatestLogicalBackupSize = val
+}
+
+// SetExternalUuid sets the value of ExternalUuid.
+func (s *OpsBackupV1) SetExternalUuid(val OptString) {
+	s.ExternalUuid = val
+}
+
+// SetBackupPolicyName sets the value of BackupPolicyName.
+func (s *OpsBackupV1) SetBackupPolicyName(val OptString) {
+	s.BackupPolicyName = val
+}
+
+// SetSnapshotName sets the value of SnapshotName.
+func (s *OpsBackupV1) SetSnapshotName(val OptString) {
+	s.SnapshotName = val
+}
+
+// SetCompletionTime sets the value of CompletionTime.
+func (s *OpsBackupV1) SetCompletionTime(val OptString) {
+	s.CompletionTime = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsBackupV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsBackupV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsBackupV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Reviewed allowlist. No HMAC key id or secret locator.
+// Ref: #/components/schemas/OpsBackupVault_v1
+type OpsBackupVaultV1 struct {
+	ResourceType string      `json:"resourceType"`
+	Source       OpsSourceV1 `json:"source"`
+	UUID         string      `json:"uuid"`
+	Name         OptString   `json:"name"`
+	Description  OptString   `json:"description"`
+	// Stored as life_cycle_state.
+	State                                  OptString   `json:"state"`
+	StateDetails                           OptString   `json:"stateDetails"`
+	StateDetailsWithheld                   OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber                          OptString   `json:"projectNumber"`
+	BackupVaultType                        OptString   `json:"backupVaultType"`
+	ServiceType                            OptString   `json:"serviceType"`
+	BackupRegionName                       OptString   `json:"backupRegionName"`
+	SourceRegionName                       OptString   `json:"sourceRegionName"`
+	CrossRegionBackupVaultName             OptString   `json:"crossRegionBackupVaultName"`
+	ExternalUuid                           OptString   `json:"externalUuid"`
+	KmsConfigResourcePath                  OptString   `json:"kmsConfigResourcePath"`
+	EncryptionState                        OptString   `json:"encryptionState"`
+	BackupsPrimaryKeyVersion               OptString   `json:"backupsPrimaryKeyVersion"`
+	BucketNames                            []string    `json:"bucketNames"`
+	BackupMinimumEnforcedRetentionDuration OptInt64    `json:"backupMinimumEnforcedRetentionDuration"`
+	IsDailyBackupImmutable                 OptBool     `json:"isDailyBackupImmutable"`
+	IsWeeklyBackupImmutable                OptBool     `json:"isWeeklyBackupImmutable"`
+	IsMonthlyBackupImmutable               OptBool     `json:"isMonthlyBackupImmutable"`
+	IsAdhocBackupImmutable                 OptBool     `json:"isAdhocBackupImmutable"`
+	CreatedAt                              time.Time   `json:"createdAt"`
+	UpdatedAt                              time.Time   `json:"updatedAt"`
+	DeletedAt                              NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsBackupVaultV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsBackupVaultV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsBackupVaultV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsBackupVaultV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsBackupVaultV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsBackupVaultV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsBackupVaultV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsBackupVaultV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsBackupVaultV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetBackupVaultType returns the value of BackupVaultType.
+func (s *OpsBackupVaultV1) GetBackupVaultType() OptString {
+	return s.BackupVaultType
+}
+
+// GetServiceType returns the value of ServiceType.
+func (s *OpsBackupVaultV1) GetServiceType() OptString {
+	return s.ServiceType
+}
+
+// GetBackupRegionName returns the value of BackupRegionName.
+func (s *OpsBackupVaultV1) GetBackupRegionName() OptString {
+	return s.BackupRegionName
+}
+
+// GetSourceRegionName returns the value of SourceRegionName.
+func (s *OpsBackupVaultV1) GetSourceRegionName() OptString {
+	return s.SourceRegionName
+}
+
+// GetCrossRegionBackupVaultName returns the value of CrossRegionBackupVaultName.
+func (s *OpsBackupVaultV1) GetCrossRegionBackupVaultName() OptString {
+	return s.CrossRegionBackupVaultName
+}
+
+// GetExternalUuid returns the value of ExternalUuid.
+func (s *OpsBackupVaultV1) GetExternalUuid() OptString {
+	return s.ExternalUuid
+}
+
+// GetKmsConfigResourcePath returns the value of KmsConfigResourcePath.
+func (s *OpsBackupVaultV1) GetKmsConfigResourcePath() OptString {
+	return s.KmsConfigResourcePath
+}
+
+// GetEncryptionState returns the value of EncryptionState.
+func (s *OpsBackupVaultV1) GetEncryptionState() OptString {
+	return s.EncryptionState
+}
+
+// GetBackupsPrimaryKeyVersion returns the value of BackupsPrimaryKeyVersion.
+func (s *OpsBackupVaultV1) GetBackupsPrimaryKeyVersion() OptString {
+	return s.BackupsPrimaryKeyVersion
+}
+
+// GetBucketNames returns the value of BucketNames.
+func (s *OpsBackupVaultV1) GetBucketNames() []string {
+	return s.BucketNames
+}
+
+// GetBackupMinimumEnforcedRetentionDuration returns the value of BackupMinimumEnforcedRetentionDuration.
+func (s *OpsBackupVaultV1) GetBackupMinimumEnforcedRetentionDuration() OptInt64 {
+	return s.BackupMinimumEnforcedRetentionDuration
+}
+
+// GetIsDailyBackupImmutable returns the value of IsDailyBackupImmutable.
+func (s *OpsBackupVaultV1) GetIsDailyBackupImmutable() OptBool {
+	return s.IsDailyBackupImmutable
+}
+
+// GetIsWeeklyBackupImmutable returns the value of IsWeeklyBackupImmutable.
+func (s *OpsBackupVaultV1) GetIsWeeklyBackupImmutable() OptBool {
+	return s.IsWeeklyBackupImmutable
+}
+
+// GetIsMonthlyBackupImmutable returns the value of IsMonthlyBackupImmutable.
+func (s *OpsBackupVaultV1) GetIsMonthlyBackupImmutable() OptBool {
+	return s.IsMonthlyBackupImmutable
+}
+
+// GetIsAdhocBackupImmutable returns the value of IsAdhocBackupImmutable.
+func (s *OpsBackupVaultV1) GetIsAdhocBackupImmutable() OptBool {
+	return s.IsAdhocBackupImmutable
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsBackupVaultV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsBackupVaultV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsBackupVaultV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsBackupVaultV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsBackupVaultV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsBackupVaultV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsBackupVaultV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsBackupVaultV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsBackupVaultV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsBackupVaultV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsBackupVaultV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsBackupVaultV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetBackupVaultType sets the value of BackupVaultType.
+func (s *OpsBackupVaultV1) SetBackupVaultType(val OptString) {
+	s.BackupVaultType = val
+}
+
+// SetServiceType sets the value of ServiceType.
+func (s *OpsBackupVaultV1) SetServiceType(val OptString) {
+	s.ServiceType = val
+}
+
+// SetBackupRegionName sets the value of BackupRegionName.
+func (s *OpsBackupVaultV1) SetBackupRegionName(val OptString) {
+	s.BackupRegionName = val
+}
+
+// SetSourceRegionName sets the value of SourceRegionName.
+func (s *OpsBackupVaultV1) SetSourceRegionName(val OptString) {
+	s.SourceRegionName = val
+}
+
+// SetCrossRegionBackupVaultName sets the value of CrossRegionBackupVaultName.
+func (s *OpsBackupVaultV1) SetCrossRegionBackupVaultName(val OptString) {
+	s.CrossRegionBackupVaultName = val
+}
+
+// SetExternalUuid sets the value of ExternalUuid.
+func (s *OpsBackupVaultV1) SetExternalUuid(val OptString) {
+	s.ExternalUuid = val
+}
+
+// SetKmsConfigResourcePath sets the value of KmsConfigResourcePath.
+func (s *OpsBackupVaultV1) SetKmsConfigResourcePath(val OptString) {
+	s.KmsConfigResourcePath = val
+}
+
+// SetEncryptionState sets the value of EncryptionState.
+func (s *OpsBackupVaultV1) SetEncryptionState(val OptString) {
+	s.EncryptionState = val
+}
+
+// SetBackupsPrimaryKeyVersion sets the value of BackupsPrimaryKeyVersion.
+func (s *OpsBackupVaultV1) SetBackupsPrimaryKeyVersion(val OptString) {
+	s.BackupsPrimaryKeyVersion = val
+}
+
+// SetBucketNames sets the value of BucketNames.
+func (s *OpsBackupVaultV1) SetBucketNames(val []string) {
+	s.BucketNames = val
+}
+
+// SetBackupMinimumEnforcedRetentionDuration sets the value of BackupMinimumEnforcedRetentionDuration.
+func (s *OpsBackupVaultV1) SetBackupMinimumEnforcedRetentionDuration(val OptInt64) {
+	s.BackupMinimumEnforcedRetentionDuration = val
+}
+
+// SetIsDailyBackupImmutable sets the value of IsDailyBackupImmutable.
+func (s *OpsBackupVaultV1) SetIsDailyBackupImmutable(val OptBool) {
+	s.IsDailyBackupImmutable = val
+}
+
+// SetIsWeeklyBackupImmutable sets the value of IsWeeklyBackupImmutable.
+func (s *OpsBackupVaultV1) SetIsWeeklyBackupImmutable(val OptBool) {
+	s.IsWeeklyBackupImmutable = val
+}
+
+// SetIsMonthlyBackupImmutable sets the value of IsMonthlyBackupImmutable.
+func (s *OpsBackupVaultV1) SetIsMonthlyBackupImmutable(val OptBool) {
+	s.IsMonthlyBackupImmutable = val
+}
+
+// SetIsAdhocBackupImmutable sets the value of IsAdhocBackupImmutable.
+func (s *OpsBackupVaultV1) SetIsAdhocBackupImmutable(val OptBool) {
+	s.IsAdhocBackupImmutable = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsBackupVaultV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsBackupVaultV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsBackupVaultV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// The VCP service account linked to the KMS config (service_accounts row). Reviewed allowlist: the
+// encrypted key data and service_account_password_location are never returned. Absent when the KMS
+// config has no linked service account (for example SDE-created).
+// Ref: #/components/schemas/OpsCmekServiceAccount_v1
+type OpsCmekServiceAccountV1 struct {
+	UUID                 string                            `json:"uuid"`
+	Name                 OptString                         `json:"name"`
+	Email                OptString                         `json:"email"`
+	ServiceName          OptString                         `json:"serviceName"`
+	State                OptString                         `json:"state"`
+	StateDetails         OptString                         `json:"stateDetails"`
+	StateDetailsWithheld OptBool                           `json:"stateDetailsWithheld"`
+	KeyRotation          OptOpsServiceAccountKeyRotationV1 `json:"keyRotation"`
+	CreatedAt            time.Time                         `json:"createdAt"`
+	UpdatedAt            time.Time                         `json:"updatedAt"`
+	DeletedAt            NilDateTime                       `json:"deletedAt"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsCmekServiceAccountV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsCmekServiceAccountV1) GetName() OptString {
+	return s.Name
+}
+
+// GetEmail returns the value of Email.
+func (s *OpsCmekServiceAccountV1) GetEmail() OptString {
+	return s.Email
+}
+
+// GetServiceName returns the value of ServiceName.
+func (s *OpsCmekServiceAccountV1) GetServiceName() OptString {
+	return s.ServiceName
+}
+
+// GetState returns the value of State.
+func (s *OpsCmekServiceAccountV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsCmekServiceAccountV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsCmekServiceAccountV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetKeyRotation returns the value of KeyRotation.
+func (s *OpsCmekServiceAccountV1) GetKeyRotation() OptOpsServiceAccountKeyRotationV1 {
+	return s.KeyRotation
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsCmekServiceAccountV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsCmekServiceAccountV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsCmekServiceAccountV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsCmekServiceAccountV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsCmekServiceAccountV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetEmail sets the value of Email.
+func (s *OpsCmekServiceAccountV1) SetEmail(val OptString) {
+	s.Email = val
+}
+
+// SetServiceName sets the value of ServiceName.
+func (s *OpsCmekServiceAccountV1) SetServiceName(val OptString) {
+	s.ServiceName = val
+}
+
+// SetState sets the value of State.
+func (s *OpsCmekServiceAccountV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsCmekServiceAccountV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsCmekServiceAccountV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetKeyRotation sets the value of KeyRotation.
+func (s *OpsCmekServiceAccountV1) SetKeyRotation(val OptOpsServiceAccountKeyRotationV1) {
+	s.KeyRotation = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsCmekServiceAccountV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsCmekServiceAccountV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsCmekServiceAccountV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Reviewed allowlist. No KMS grant, service-account key data or SDE diagnostics. serviceAccount
+// carries the linked service account and its key rotation state.
+// Ref: #/components/schemas/OpsCmek_v1
+type OpsCmekV1 struct {
+	ResourceType         string                     `json:"resourceType"`
+	Source               OpsSourceV1                `json:"source"`
+	UUID                 string                     `json:"uuid"`
+	ResourceId           OptString                  `json:"resourceId"`
+	Description          OptString                  `json:"description"`
+	State                OptString                  `json:"state"`
+	StateDetails         OptString                  `json:"stateDetails"`
+	StateDetailsWithheld OptBool                    `json:"stateDetailsWithheld"`
+	ProjectNumber        OptString                  `json:"projectNumber"`
+	KeyRing              OptString                  `json:"keyRing"`
+	KeyRingLocation      OptString                  `json:"keyRingLocation"`
+	KeyName              OptString                  `json:"keyName"`
+	KeyProjectId         OptString                  `json:"keyProjectId"`
+	CustomerProjectId    OptString                  `json:"customerProjectId"`
+	CreationMode         OptString                  `json:"creationMode"`
+	ServiceAccountEmail  OptString                  `json:"serviceAccountEmail"`
+	SdeHealthy           OptBool                    `json:"sdeHealthy"`
+	ServiceAccount       OptOpsCmekServiceAccountV1 `json:"serviceAccount"`
+	CreatedAt            time.Time                  `json:"createdAt"`
+	UpdatedAt            time.Time                  `json:"updatedAt"`
+	DeletedAt            NilDateTime                `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsCmekV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsCmekV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsCmekV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetResourceId returns the value of ResourceId.
+func (s *OpsCmekV1) GetResourceId() OptString {
+	return s.ResourceId
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsCmekV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsCmekV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsCmekV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsCmekV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsCmekV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetKeyRing returns the value of KeyRing.
+func (s *OpsCmekV1) GetKeyRing() OptString {
+	return s.KeyRing
+}
+
+// GetKeyRingLocation returns the value of KeyRingLocation.
+func (s *OpsCmekV1) GetKeyRingLocation() OptString {
+	return s.KeyRingLocation
+}
+
+// GetKeyName returns the value of KeyName.
+func (s *OpsCmekV1) GetKeyName() OptString {
+	return s.KeyName
+}
+
+// GetKeyProjectId returns the value of KeyProjectId.
+func (s *OpsCmekV1) GetKeyProjectId() OptString {
+	return s.KeyProjectId
+}
+
+// GetCustomerProjectId returns the value of CustomerProjectId.
+func (s *OpsCmekV1) GetCustomerProjectId() OptString {
+	return s.CustomerProjectId
+}
+
+// GetCreationMode returns the value of CreationMode.
+func (s *OpsCmekV1) GetCreationMode() OptString {
+	return s.CreationMode
+}
+
+// GetServiceAccountEmail returns the value of ServiceAccountEmail.
+func (s *OpsCmekV1) GetServiceAccountEmail() OptString {
+	return s.ServiceAccountEmail
+}
+
+// GetSdeHealthy returns the value of SdeHealthy.
+func (s *OpsCmekV1) GetSdeHealthy() OptBool {
+	return s.SdeHealthy
+}
+
+// GetServiceAccount returns the value of ServiceAccount.
+func (s *OpsCmekV1) GetServiceAccount() OptOpsCmekServiceAccountV1 {
+	return s.ServiceAccount
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsCmekV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsCmekV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsCmekV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsCmekV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsCmekV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsCmekV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetResourceId sets the value of ResourceId.
+func (s *OpsCmekV1) SetResourceId(val OptString) {
+	s.ResourceId = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsCmekV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsCmekV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsCmekV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsCmekV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsCmekV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetKeyRing sets the value of KeyRing.
+func (s *OpsCmekV1) SetKeyRing(val OptString) {
+	s.KeyRing = val
+}
+
+// SetKeyRingLocation sets the value of KeyRingLocation.
+func (s *OpsCmekV1) SetKeyRingLocation(val OptString) {
+	s.KeyRingLocation = val
+}
+
+// SetKeyName sets the value of KeyName.
+func (s *OpsCmekV1) SetKeyName(val OptString) {
+	s.KeyName = val
+}
+
+// SetKeyProjectId sets the value of KeyProjectId.
+func (s *OpsCmekV1) SetKeyProjectId(val OptString) {
+	s.KeyProjectId = val
+}
+
+// SetCustomerProjectId sets the value of CustomerProjectId.
+func (s *OpsCmekV1) SetCustomerProjectId(val OptString) {
+	s.CustomerProjectId = val
+}
+
+// SetCreationMode sets the value of CreationMode.
+func (s *OpsCmekV1) SetCreationMode(val OptString) {
+	s.CreationMode = val
+}
+
+// SetServiceAccountEmail sets the value of ServiceAccountEmail.
+func (s *OpsCmekV1) SetServiceAccountEmail(val OptString) {
+	s.ServiceAccountEmail = val
+}
+
+// SetSdeHealthy sets the value of SdeHealthy.
+func (s *OpsCmekV1) SetSdeHealthy(val OptBool) {
+	s.SdeHealthy = val
+}
+
+// SetServiceAccount sets the value of ServiceAccount.
+func (s *OpsCmekV1) SetServiceAccount(val OptOpsCmekServiceAccountV1) {
+	s.ServiceAccount = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsCmekV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsCmekV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsCmekV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Ref: #/components/schemas/OpsGetResourceRequest_v1
+type OpsGetResourceRequestV1 struct {
+	ResourceType OpsResourceTypeV1 `json:"resourceType"`
+	Identity     OpsIdentityV1     `json:"identity"`
+	// Only for get by name, where the name is unique under a parent.
+	Parents []OpsParentV1 `json:"parents"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsGetResourceRequestV1) GetResourceType() OpsResourceTypeV1 {
+	return s.ResourceType
+}
+
+// GetIdentity returns the value of Identity.
+func (s *OpsGetResourceRequestV1) GetIdentity() OpsIdentityV1 {
+	return s.Identity
+}
+
+// GetParents returns the value of Parents.
+func (s *OpsGetResourceRequestV1) GetParents() []OpsParentV1 {
+	return s.Parents
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsGetResourceRequestV1) SetResourceType(val OpsResourceTypeV1) {
+	s.ResourceType = val
+}
+
+// SetIdentity sets the value of Identity.
+func (s *OpsGetResourceRequestV1) SetIdentity(val OpsIdentityV1) {
+	s.Identity = val
+}
+
+// SetParents sets the value of Parents.
+func (s *OpsGetResourceRequestV1) SetParents(val []OpsParentV1) {
+	s.Parents = val
+}
+
+// Exactly one of uuid or name.
+// Ref: #/components/schemas/OpsIdentity_v1
+type OpsIdentityV1 struct {
+	UUID OptString `json:"uuid"`
+	Name OptString `json:"name"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsIdentityV1) GetUUID() OptString {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsIdentityV1) GetName() OptString {
+	return s.Name
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsIdentityV1) SetUUID(val OptString) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsIdentityV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// Reviewed allowlist of the jobs row. No payloads; raw error text is replaced by the catalog message
+// for trackingId.
+// Ref: #/components/schemas/OpsJobDetails_v1
+type OpsJobDetailsV1 struct {
+	UUID       string    `json:"uuid"`
+	Type       OptString `json:"type"`
+	State      OptString `json:"state"`
+	TrackingId OptInt64  `json:"trackingId"`
+	// Catalog message for trackingId, when known.
+	ErrorMessage  OptString   `json:"errorMessage"`
+	CorrelationId OptString   `json:"correlationId"`
+	RequestId     OptString   `json:"requestId"`
+	ResourceUuid  OptString   `json:"resourceUuid"`
+	ResourceName  OptString   `json:"resourceName"`
+	PoolUuid      OptString   `json:"poolUuid"`
+	WorkflowId    OptString   `json:"workflowId"`
+	IsAdminJob    OptBool     `json:"isAdminJob"`
+	ProjectNumber OptString   `json:"projectNumber"`
+	ScheduledAt   OptDateTime `json:"scheduledAt"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     time.Time   `json:"updatedAt"`
+	DeletedAt     NilDateTime `json:"deletedAt"`
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsJobDetailsV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetType returns the value of Type.
+func (s *OpsJobDetailsV1) GetType() OptString {
+	return s.Type
+}
+
+// GetState returns the value of State.
+func (s *OpsJobDetailsV1) GetState() OptString {
+	return s.State
+}
+
+// GetTrackingId returns the value of TrackingId.
+func (s *OpsJobDetailsV1) GetTrackingId() OptInt64 {
+	return s.TrackingId
+}
+
+// GetErrorMessage returns the value of ErrorMessage.
+func (s *OpsJobDetailsV1) GetErrorMessage() OptString {
+	return s.ErrorMessage
+}
+
+// GetCorrelationId returns the value of CorrelationId.
+func (s *OpsJobDetailsV1) GetCorrelationId() OptString {
+	return s.CorrelationId
+}
+
+// GetRequestId returns the value of RequestId.
+func (s *OpsJobDetailsV1) GetRequestId() OptString {
+	return s.RequestId
+}
+
+// GetResourceUuid returns the value of ResourceUuid.
+func (s *OpsJobDetailsV1) GetResourceUuid() OptString {
+	return s.ResourceUuid
+}
+
+// GetResourceName returns the value of ResourceName.
+func (s *OpsJobDetailsV1) GetResourceName() OptString {
+	return s.ResourceName
+}
+
+// GetPoolUuid returns the value of PoolUuid.
+func (s *OpsJobDetailsV1) GetPoolUuid() OptString {
+	return s.PoolUuid
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *OpsJobDetailsV1) GetWorkflowId() OptString {
+	return s.WorkflowId
+}
+
+// GetIsAdminJob returns the value of IsAdminJob.
+func (s *OpsJobDetailsV1) GetIsAdminJob() OptBool {
+	return s.IsAdminJob
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsJobDetailsV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetScheduledAt returns the value of ScheduledAt.
+func (s *OpsJobDetailsV1) GetScheduledAt() OptDateTime {
+	return s.ScheduledAt
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsJobDetailsV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsJobDetailsV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsJobDetailsV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsJobDetailsV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetType sets the value of Type.
+func (s *OpsJobDetailsV1) SetType(val OptString) {
+	s.Type = val
+}
+
+// SetState sets the value of State.
+func (s *OpsJobDetailsV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetTrackingId sets the value of TrackingId.
+func (s *OpsJobDetailsV1) SetTrackingId(val OptInt64) {
+	s.TrackingId = val
+}
+
+// SetErrorMessage sets the value of ErrorMessage.
+func (s *OpsJobDetailsV1) SetErrorMessage(val OptString) {
+	s.ErrorMessage = val
+}
+
+// SetCorrelationId sets the value of CorrelationId.
+func (s *OpsJobDetailsV1) SetCorrelationId(val OptString) {
+	s.CorrelationId = val
+}
+
+// SetRequestId sets the value of RequestId.
+func (s *OpsJobDetailsV1) SetRequestId(val OptString) {
+	s.RequestId = val
+}
+
+// SetResourceUuid sets the value of ResourceUuid.
+func (s *OpsJobDetailsV1) SetResourceUuid(val OptString) {
+	s.ResourceUuid = val
+}
+
+// SetResourceName sets the value of ResourceName.
+func (s *OpsJobDetailsV1) SetResourceName(val OptString) {
+	s.ResourceName = val
+}
+
+// SetPoolUuid sets the value of PoolUuid.
+func (s *OpsJobDetailsV1) SetPoolUuid(val OptString) {
+	s.PoolUuid = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *OpsJobDetailsV1) SetWorkflowId(val OptString) {
+	s.WorkflowId = val
+}
+
+// SetIsAdminJob sets the value of IsAdminJob.
+func (s *OpsJobDetailsV1) SetIsAdminJob(val OptBool) {
+	s.IsAdminJob = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsJobDetailsV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetScheduledAt sets the value of ScheduledAt.
+func (s *OpsJobDetailsV1) SetScheduledAt(val OptDateTime) {
+	s.ScheduledAt = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsJobDetailsV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsJobDetailsV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsJobDetailsV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Read-only Temporal describe of the job workflow (execution metadata only). No input, result, memo,
+// search attribute values, user metadata, heartbeat details, failure messages or history events;
+// completed activities are not shown because they live only in the history. Durations are seconds.
+// stateMismatch is only set when enrichmentStatus is COMPLETE.
+// Ref: #/components/schemas/OpsJobTemporal_v1
+type OpsJobTemporalV1 struct {
+	EnrichmentStatus     OpsJobTemporalV1EnrichmentStatus `json:"enrichmentStatus"`
+	Reason               OptString                        `json:"reason"`
+	WorkflowId           OptString                        `json:"workflowId"`
+	RunId                OptString                        `json:"runId"`
+	WorkflowType         OptString                        `json:"workflowType"`
+	TaskQueue            OptString                        `json:"taskQueue"`
+	Status               OptString                        `json:"status"`
+	StartTime            OptDateTime                      `json:"startTime"`
+	ExecutionTime        OptDateTime                      `json:"executionTime"`
+	CloseTime            OptNilDateTime                   `json:"closeTime"`
+	HistoryLength        OptInt64                         `json:"historyLength"`
+	HistorySizeBytes     OptInt64                         `json:"historySizeBytes"`
+	StateTransitionCount OptInt64                         `json:"stateTransitionCount"`
+	// Set when the run is closed.
+	ExecutionDurationSeconds OptFloat64 `json:"executionDurationSeconds"`
+	FirstRunId               OptString  `json:"firstRunId"`
+	ParentWorkflowId         OptString  `json:"parentWorkflowId"`
+	ParentRunId              OptString  `json:"parentRunId"`
+	RootWorkflowId           OptString  `json:"rootWorkflowId"`
+	RootRunId                OptString  `json:"rootRunId"`
+	WorkerDeploymentName     OptString  `json:"workerDeploymentName"`
+	// Worker build that runs the workflow (deployment version, else assigned build id, else last worker
+	// stamp).
+	BuildId                         OptString                   `json:"buildId"`
+	VersioningBehavior              OptString                   `json:"versioningBehavior"`
+	WorkflowExecutionTimeoutSeconds OptFloat64                  `json:"workflowExecutionTimeoutSeconds"`
+	WorkflowRunTimeoutSeconds       OptFloat64                  `json:"workflowRunTimeoutSeconds"`
+	WorkflowTaskTimeoutSeconds      OptFloat64                  `json:"workflowTaskTimeoutSeconds"`
+	ExecutionExpirationTime         OptDateTime                 `json:"executionExpirationTime"`
+	RunExpirationTime               OptDateTime                 `json:"runExpirationTime"`
+	CancelRequested                 OptBool                     `json:"cancelRequested"`
+	LastResetTime                   OptDateTime                 `json:"lastResetTime"`
+	PendingWorkflowTask             OptOpsPendingWorkflowTaskV1 `json:"pendingWorkflowTask"`
+	PendingActivities               []OpsPendingActivityV1      `json:"pendingActivities"`
+	PendingChildren                 []OpsPendingChildV1         `json:"pendingChildren"`
+	StateMismatch                   OptBool                     `json:"stateMismatch"`
+	SequenceWorkflowId              OptString                   `json:"sequenceWorkflowId"`
+	SequenceWorkflowStatus          OptString                   `json:"sequenceWorkflowStatus"`
+}
+
+// GetEnrichmentStatus returns the value of EnrichmentStatus.
+func (s *OpsJobTemporalV1) GetEnrichmentStatus() OpsJobTemporalV1EnrichmentStatus {
+	return s.EnrichmentStatus
+}
+
+// GetReason returns the value of Reason.
+func (s *OpsJobTemporalV1) GetReason() OptString {
+	return s.Reason
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *OpsJobTemporalV1) GetWorkflowId() OptString {
+	return s.WorkflowId
+}
+
+// GetRunId returns the value of RunId.
+func (s *OpsJobTemporalV1) GetRunId() OptString {
+	return s.RunId
+}
+
+// GetWorkflowType returns the value of WorkflowType.
+func (s *OpsJobTemporalV1) GetWorkflowType() OptString {
+	return s.WorkflowType
+}
+
+// GetTaskQueue returns the value of TaskQueue.
+func (s *OpsJobTemporalV1) GetTaskQueue() OptString {
+	return s.TaskQueue
+}
+
+// GetStatus returns the value of Status.
+func (s *OpsJobTemporalV1) GetStatus() OptString {
+	return s.Status
+}
+
+// GetStartTime returns the value of StartTime.
+func (s *OpsJobTemporalV1) GetStartTime() OptDateTime {
+	return s.StartTime
+}
+
+// GetExecutionTime returns the value of ExecutionTime.
+func (s *OpsJobTemporalV1) GetExecutionTime() OptDateTime {
+	return s.ExecutionTime
+}
+
+// GetCloseTime returns the value of CloseTime.
+func (s *OpsJobTemporalV1) GetCloseTime() OptNilDateTime {
+	return s.CloseTime
+}
+
+// GetHistoryLength returns the value of HistoryLength.
+func (s *OpsJobTemporalV1) GetHistoryLength() OptInt64 {
+	return s.HistoryLength
+}
+
+// GetHistorySizeBytes returns the value of HistorySizeBytes.
+func (s *OpsJobTemporalV1) GetHistorySizeBytes() OptInt64 {
+	return s.HistorySizeBytes
+}
+
+// GetStateTransitionCount returns the value of StateTransitionCount.
+func (s *OpsJobTemporalV1) GetStateTransitionCount() OptInt64 {
+	return s.StateTransitionCount
+}
+
+// GetExecutionDurationSeconds returns the value of ExecutionDurationSeconds.
+func (s *OpsJobTemporalV1) GetExecutionDurationSeconds() OptFloat64 {
+	return s.ExecutionDurationSeconds
+}
+
+// GetFirstRunId returns the value of FirstRunId.
+func (s *OpsJobTemporalV1) GetFirstRunId() OptString {
+	return s.FirstRunId
+}
+
+// GetParentWorkflowId returns the value of ParentWorkflowId.
+func (s *OpsJobTemporalV1) GetParentWorkflowId() OptString {
+	return s.ParentWorkflowId
+}
+
+// GetParentRunId returns the value of ParentRunId.
+func (s *OpsJobTemporalV1) GetParentRunId() OptString {
+	return s.ParentRunId
+}
+
+// GetRootWorkflowId returns the value of RootWorkflowId.
+func (s *OpsJobTemporalV1) GetRootWorkflowId() OptString {
+	return s.RootWorkflowId
+}
+
+// GetRootRunId returns the value of RootRunId.
+func (s *OpsJobTemporalV1) GetRootRunId() OptString {
+	return s.RootRunId
+}
+
+// GetWorkerDeploymentName returns the value of WorkerDeploymentName.
+func (s *OpsJobTemporalV1) GetWorkerDeploymentName() OptString {
+	return s.WorkerDeploymentName
+}
+
+// GetBuildId returns the value of BuildId.
+func (s *OpsJobTemporalV1) GetBuildId() OptString {
+	return s.BuildId
+}
+
+// GetVersioningBehavior returns the value of VersioningBehavior.
+func (s *OpsJobTemporalV1) GetVersioningBehavior() OptString {
+	return s.VersioningBehavior
+}
+
+// GetWorkflowExecutionTimeoutSeconds returns the value of WorkflowExecutionTimeoutSeconds.
+func (s *OpsJobTemporalV1) GetWorkflowExecutionTimeoutSeconds() OptFloat64 {
+	return s.WorkflowExecutionTimeoutSeconds
+}
+
+// GetWorkflowRunTimeoutSeconds returns the value of WorkflowRunTimeoutSeconds.
+func (s *OpsJobTemporalV1) GetWorkflowRunTimeoutSeconds() OptFloat64 {
+	return s.WorkflowRunTimeoutSeconds
+}
+
+// GetWorkflowTaskTimeoutSeconds returns the value of WorkflowTaskTimeoutSeconds.
+func (s *OpsJobTemporalV1) GetWorkflowTaskTimeoutSeconds() OptFloat64 {
+	return s.WorkflowTaskTimeoutSeconds
+}
+
+// GetExecutionExpirationTime returns the value of ExecutionExpirationTime.
+func (s *OpsJobTemporalV1) GetExecutionExpirationTime() OptDateTime {
+	return s.ExecutionExpirationTime
+}
+
+// GetRunExpirationTime returns the value of RunExpirationTime.
+func (s *OpsJobTemporalV1) GetRunExpirationTime() OptDateTime {
+	return s.RunExpirationTime
+}
+
+// GetCancelRequested returns the value of CancelRequested.
+func (s *OpsJobTemporalV1) GetCancelRequested() OptBool {
+	return s.CancelRequested
+}
+
+// GetLastResetTime returns the value of LastResetTime.
+func (s *OpsJobTemporalV1) GetLastResetTime() OptDateTime {
+	return s.LastResetTime
+}
+
+// GetPendingWorkflowTask returns the value of PendingWorkflowTask.
+func (s *OpsJobTemporalV1) GetPendingWorkflowTask() OptOpsPendingWorkflowTaskV1 {
+	return s.PendingWorkflowTask
+}
+
+// GetPendingActivities returns the value of PendingActivities.
+func (s *OpsJobTemporalV1) GetPendingActivities() []OpsPendingActivityV1 {
+	return s.PendingActivities
+}
+
+// GetPendingChildren returns the value of PendingChildren.
+func (s *OpsJobTemporalV1) GetPendingChildren() []OpsPendingChildV1 {
+	return s.PendingChildren
+}
+
+// GetStateMismatch returns the value of StateMismatch.
+func (s *OpsJobTemporalV1) GetStateMismatch() OptBool {
+	return s.StateMismatch
+}
+
+// GetSequenceWorkflowId returns the value of SequenceWorkflowId.
+func (s *OpsJobTemporalV1) GetSequenceWorkflowId() OptString {
+	return s.SequenceWorkflowId
+}
+
+// GetSequenceWorkflowStatus returns the value of SequenceWorkflowStatus.
+func (s *OpsJobTemporalV1) GetSequenceWorkflowStatus() OptString {
+	return s.SequenceWorkflowStatus
+}
+
+// SetEnrichmentStatus sets the value of EnrichmentStatus.
+func (s *OpsJobTemporalV1) SetEnrichmentStatus(val OpsJobTemporalV1EnrichmentStatus) {
+	s.EnrichmentStatus = val
+}
+
+// SetReason sets the value of Reason.
+func (s *OpsJobTemporalV1) SetReason(val OptString) {
+	s.Reason = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *OpsJobTemporalV1) SetWorkflowId(val OptString) {
+	s.WorkflowId = val
+}
+
+// SetRunId sets the value of RunId.
+func (s *OpsJobTemporalV1) SetRunId(val OptString) {
+	s.RunId = val
+}
+
+// SetWorkflowType sets the value of WorkflowType.
+func (s *OpsJobTemporalV1) SetWorkflowType(val OptString) {
+	s.WorkflowType = val
+}
+
+// SetTaskQueue sets the value of TaskQueue.
+func (s *OpsJobTemporalV1) SetTaskQueue(val OptString) {
+	s.TaskQueue = val
+}
+
+// SetStatus sets the value of Status.
+func (s *OpsJobTemporalV1) SetStatus(val OptString) {
+	s.Status = val
+}
+
+// SetStartTime sets the value of StartTime.
+func (s *OpsJobTemporalV1) SetStartTime(val OptDateTime) {
+	s.StartTime = val
+}
+
+// SetExecutionTime sets the value of ExecutionTime.
+func (s *OpsJobTemporalV1) SetExecutionTime(val OptDateTime) {
+	s.ExecutionTime = val
+}
+
+// SetCloseTime sets the value of CloseTime.
+func (s *OpsJobTemporalV1) SetCloseTime(val OptNilDateTime) {
+	s.CloseTime = val
+}
+
+// SetHistoryLength sets the value of HistoryLength.
+func (s *OpsJobTemporalV1) SetHistoryLength(val OptInt64) {
+	s.HistoryLength = val
+}
+
+// SetHistorySizeBytes sets the value of HistorySizeBytes.
+func (s *OpsJobTemporalV1) SetHistorySizeBytes(val OptInt64) {
+	s.HistorySizeBytes = val
+}
+
+// SetStateTransitionCount sets the value of StateTransitionCount.
+func (s *OpsJobTemporalV1) SetStateTransitionCount(val OptInt64) {
+	s.StateTransitionCount = val
+}
+
+// SetExecutionDurationSeconds sets the value of ExecutionDurationSeconds.
+func (s *OpsJobTemporalV1) SetExecutionDurationSeconds(val OptFloat64) {
+	s.ExecutionDurationSeconds = val
+}
+
+// SetFirstRunId sets the value of FirstRunId.
+func (s *OpsJobTemporalV1) SetFirstRunId(val OptString) {
+	s.FirstRunId = val
+}
+
+// SetParentWorkflowId sets the value of ParentWorkflowId.
+func (s *OpsJobTemporalV1) SetParentWorkflowId(val OptString) {
+	s.ParentWorkflowId = val
+}
+
+// SetParentRunId sets the value of ParentRunId.
+func (s *OpsJobTemporalV1) SetParentRunId(val OptString) {
+	s.ParentRunId = val
+}
+
+// SetRootWorkflowId sets the value of RootWorkflowId.
+func (s *OpsJobTemporalV1) SetRootWorkflowId(val OptString) {
+	s.RootWorkflowId = val
+}
+
+// SetRootRunId sets the value of RootRunId.
+func (s *OpsJobTemporalV1) SetRootRunId(val OptString) {
+	s.RootRunId = val
+}
+
+// SetWorkerDeploymentName sets the value of WorkerDeploymentName.
+func (s *OpsJobTemporalV1) SetWorkerDeploymentName(val OptString) {
+	s.WorkerDeploymentName = val
+}
+
+// SetBuildId sets the value of BuildId.
+func (s *OpsJobTemporalV1) SetBuildId(val OptString) {
+	s.BuildId = val
+}
+
+// SetVersioningBehavior sets the value of VersioningBehavior.
+func (s *OpsJobTemporalV1) SetVersioningBehavior(val OptString) {
+	s.VersioningBehavior = val
+}
+
+// SetWorkflowExecutionTimeoutSeconds sets the value of WorkflowExecutionTimeoutSeconds.
+func (s *OpsJobTemporalV1) SetWorkflowExecutionTimeoutSeconds(val OptFloat64) {
+	s.WorkflowExecutionTimeoutSeconds = val
+}
+
+// SetWorkflowRunTimeoutSeconds sets the value of WorkflowRunTimeoutSeconds.
+func (s *OpsJobTemporalV1) SetWorkflowRunTimeoutSeconds(val OptFloat64) {
+	s.WorkflowRunTimeoutSeconds = val
+}
+
+// SetWorkflowTaskTimeoutSeconds sets the value of WorkflowTaskTimeoutSeconds.
+func (s *OpsJobTemporalV1) SetWorkflowTaskTimeoutSeconds(val OptFloat64) {
+	s.WorkflowTaskTimeoutSeconds = val
+}
+
+// SetExecutionExpirationTime sets the value of ExecutionExpirationTime.
+func (s *OpsJobTemporalV1) SetExecutionExpirationTime(val OptDateTime) {
+	s.ExecutionExpirationTime = val
+}
+
+// SetRunExpirationTime sets the value of RunExpirationTime.
+func (s *OpsJobTemporalV1) SetRunExpirationTime(val OptDateTime) {
+	s.RunExpirationTime = val
+}
+
+// SetCancelRequested sets the value of CancelRequested.
+func (s *OpsJobTemporalV1) SetCancelRequested(val OptBool) {
+	s.CancelRequested = val
+}
+
+// SetLastResetTime sets the value of LastResetTime.
+func (s *OpsJobTemporalV1) SetLastResetTime(val OptDateTime) {
+	s.LastResetTime = val
+}
+
+// SetPendingWorkflowTask sets the value of PendingWorkflowTask.
+func (s *OpsJobTemporalV1) SetPendingWorkflowTask(val OptOpsPendingWorkflowTaskV1) {
+	s.PendingWorkflowTask = val
+}
+
+// SetPendingActivities sets the value of PendingActivities.
+func (s *OpsJobTemporalV1) SetPendingActivities(val []OpsPendingActivityV1) {
+	s.PendingActivities = val
+}
+
+// SetPendingChildren sets the value of PendingChildren.
+func (s *OpsJobTemporalV1) SetPendingChildren(val []OpsPendingChildV1) {
+	s.PendingChildren = val
+}
+
+// SetStateMismatch sets the value of StateMismatch.
+func (s *OpsJobTemporalV1) SetStateMismatch(val OptBool) {
+	s.StateMismatch = val
+}
+
+// SetSequenceWorkflowId sets the value of SequenceWorkflowId.
+func (s *OpsJobTemporalV1) SetSequenceWorkflowId(val OptString) {
+	s.SequenceWorkflowId = val
+}
+
+// SetSequenceWorkflowStatus sets the value of SequenceWorkflowStatus.
+func (s *OpsJobTemporalV1) SetSequenceWorkflowStatus(val OptString) {
+	s.SequenceWorkflowStatus = val
+}
+
+type OpsJobTemporalV1EnrichmentStatus string
+
+const (
+	OpsJobTemporalV1EnrichmentStatusCOMPLETE          OpsJobTemporalV1EnrichmentStatus = "COMPLETE"
+	OpsJobTemporalV1EnrichmentStatusSKIPPED           OpsJobTemporalV1EnrichmentStatus = "SKIPPED"
+	OpsJobTemporalV1EnrichmentStatusNOTFOUND          OpsJobTemporalV1EnrichmentStatus = "NOT_FOUND"
+	OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER OpsJobTemporalV1EnrichmentStatus = "QUEUED_IN_SEQUENCER"
+	OpsJobTemporalV1EnrichmentStatusUNAVAILABLE       OpsJobTemporalV1EnrichmentStatus = "UNAVAILABLE"
+)
+
+// AllValues returns all OpsJobTemporalV1EnrichmentStatus values.
+func (OpsJobTemporalV1EnrichmentStatus) AllValues() []OpsJobTemporalV1EnrichmentStatus {
+	return []OpsJobTemporalV1EnrichmentStatus{
+		OpsJobTemporalV1EnrichmentStatusCOMPLETE,
+		OpsJobTemporalV1EnrichmentStatusSKIPPED,
+		OpsJobTemporalV1EnrichmentStatusNOTFOUND,
+		OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER,
+		OpsJobTemporalV1EnrichmentStatusUNAVAILABLE,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OpsJobTemporalV1EnrichmentStatus) MarshalText() ([]byte, error) {
+	switch s {
+	case OpsJobTemporalV1EnrichmentStatusCOMPLETE:
+		return []byte(s), nil
+	case OpsJobTemporalV1EnrichmentStatusSKIPPED:
+		return []byte(s), nil
+	case OpsJobTemporalV1EnrichmentStatusNOTFOUND:
+		return []byte(s), nil
+	case OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER:
+		return []byte(s), nil
+	case OpsJobTemporalV1EnrichmentStatusUNAVAILABLE:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OpsJobTemporalV1EnrichmentStatus) UnmarshalText(data []byte) error {
+	switch OpsJobTemporalV1EnrichmentStatus(data) {
+	case OpsJobTemporalV1EnrichmentStatusCOMPLETE:
+		*s = OpsJobTemporalV1EnrichmentStatusCOMPLETE
+		return nil
+	case OpsJobTemporalV1EnrichmentStatusSKIPPED:
+		*s = OpsJobTemporalV1EnrichmentStatusSKIPPED
+		return nil
+	case OpsJobTemporalV1EnrichmentStatusNOTFOUND:
+		*s = OpsJobTemporalV1EnrichmentStatusNOTFOUND
+		return nil
+	case OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER:
+		*s = OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER
+		return nil
+	case OpsJobTemporalV1EnrichmentStatusUNAVAILABLE:
+		*s = OpsJobTemporalV1EnrichmentStatusUNAVAILABLE
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/OpsJob_v1
+type OpsJobV1 struct {
+	ResourceType string           `json:"resourceType"`
+	Source       OpsSourceV1      `json:"source"`
+	Job          OpsJobDetailsV1  `json:"job"`
+	Temporal     OpsJobTemporalV1 `json:"temporal"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsJobV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsJobV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetJob returns the value of Job.
+func (s *OpsJobV1) GetJob() OpsJobDetailsV1 {
+	return s.Job
+}
+
+// GetTemporal returns the value of Temporal.
+func (s *OpsJobV1) GetTemporal() OpsJobTemporalV1 {
+	return s.Temporal
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsJobV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsJobV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetJob sets the value of Job.
+func (s *OpsJobV1) SetJob(val OpsJobDetailsV1) {
+	s.Job = val
+}
+
+// SetTemporal sets the value of Temporal.
+func (s *OpsJobV1) SetTemporal(val OpsJobTemporalV1) {
+	s.Temporal = val
+}
+
+// Exact-match field filters, AND-ed. correlationId and type are job only. Empty strings are rejected.
+// Ref: #/components/schemas/OpsListFilters_v1
+type OpsListFiltersV1 struct {
+	Name          OptString `json:"name"`
+	State         OptString `json:"state"`
+	CorrelationId OptString `json:"correlationId"`
+	Type          OptString `json:"type"`
+}
+
+// GetName returns the value of Name.
+func (s *OpsListFiltersV1) GetName() OptString {
+	return s.Name
+}
+
+// GetState returns the value of State.
+func (s *OpsListFiltersV1) GetState() OptString {
+	return s.State
+}
+
+// GetCorrelationId returns the value of CorrelationId.
+func (s *OpsListFiltersV1) GetCorrelationId() OptString {
+	return s.CorrelationId
+}
+
+// GetType returns the value of Type.
+func (s *OpsListFiltersV1) GetType() OptString {
+	return s.Type
+}
+
+// SetName sets the value of Name.
+func (s *OpsListFiltersV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetState sets the value of State.
+func (s *OpsListFiltersV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetCorrelationId sets the value of CorrelationId.
+func (s *OpsListFiltersV1) SetCorrelationId(val OptString) {
+	s.CorrelationId = val
+}
+
+// SetType sets the value of Type.
+func (s *OpsListFiltersV1) SetType(val OptString) {
+	s.Type = val
+}
+
+// Ref: #/components/schemas/OpsListResourcesRequest_v1
+type OpsListResourcesRequestV1 struct {
+	ResourceType   OpsResourceTypeV1   `json:"resourceType"`
+	Parents        []OpsParentV1       `json:"parents"`
+	TimeFilters    []OpsTimeFilterV1   `json:"timeFilters"`
+	Filters        OptOpsListFiltersV1 `json:"filters"`
+	IncludeDeleted OptBool             `json:"includeDeleted"`
+	// Default 10. Values above 50 are clamped to 50.
+	PageSize  OptInt32  `json:"pageSize"`
+	PageToken OptString `json:"pageToken"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsListResourcesRequestV1) GetResourceType() OpsResourceTypeV1 {
+	return s.ResourceType
+}
+
+// GetParents returns the value of Parents.
+func (s *OpsListResourcesRequestV1) GetParents() []OpsParentV1 {
+	return s.Parents
+}
+
+// GetTimeFilters returns the value of TimeFilters.
+func (s *OpsListResourcesRequestV1) GetTimeFilters() []OpsTimeFilterV1 {
+	return s.TimeFilters
+}
+
+// GetFilters returns the value of Filters.
+func (s *OpsListResourcesRequestV1) GetFilters() OptOpsListFiltersV1 {
+	return s.Filters
+}
+
+// GetIncludeDeleted returns the value of IncludeDeleted.
+func (s *OpsListResourcesRequestV1) GetIncludeDeleted() OptBool {
+	return s.IncludeDeleted
+}
+
+// GetPageSize returns the value of PageSize.
+func (s *OpsListResourcesRequestV1) GetPageSize() OptInt32 {
+	return s.PageSize
+}
+
+// GetPageToken returns the value of PageToken.
+func (s *OpsListResourcesRequestV1) GetPageToken() OptString {
+	return s.PageToken
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsListResourcesRequestV1) SetResourceType(val OpsResourceTypeV1) {
+	s.ResourceType = val
+}
+
+// SetParents sets the value of Parents.
+func (s *OpsListResourcesRequestV1) SetParents(val []OpsParentV1) {
+	s.Parents = val
+}
+
+// SetTimeFilters sets the value of TimeFilters.
+func (s *OpsListResourcesRequestV1) SetTimeFilters(val []OpsTimeFilterV1) {
+	s.TimeFilters = val
+}
+
+// SetFilters sets the value of Filters.
+func (s *OpsListResourcesRequestV1) SetFilters(val OptOpsListFiltersV1) {
+	s.Filters = val
+}
+
+// SetIncludeDeleted sets the value of IncludeDeleted.
+func (s *OpsListResourcesRequestV1) SetIncludeDeleted(val OptBool) {
+	s.IncludeDeleted = val
+}
+
+// SetPageSize sets the value of PageSize.
+func (s *OpsListResourcesRequestV1) SetPageSize(val OptInt32) {
+	s.PageSize = val
+}
+
+// SetPageToken sets the value of PageToken.
+func (s *OpsListResourcesRequestV1) SetPageToken(val OptString) {
+	s.PageToken = val
+}
+
+// Ref: #/components/schemas/OpsListResourcesResponse_v1
+type OpsListResourcesResponseV1 struct {
+	Resources []OpsResourceV1 `json:"resources"`
+	// Empty on the last page.
+	NextPageToken OptString `json:"nextPageToken"`
+}
+
+// GetResources returns the value of Resources.
+func (s *OpsListResourcesResponseV1) GetResources() []OpsResourceV1 {
+	return s.Resources
+}
+
+// GetNextPageToken returns the value of NextPageToken.
+func (s *OpsListResourcesResponseV1) GetNextPageToken() OptString {
+	return s.NextPageToken
+}
+
+// SetResources sets the value of Resources.
+func (s *OpsListResourcesResponseV1) SetResources(val []OpsResourceV1) {
+	s.Resources = val
+}
+
+// SetNextPageToken sets the value of NextPageToken.
+func (s *OpsListResourcesResponseV1) SetNextPageToken(val OptString) {
+	s.NextPageToken = val
+}
+
+func (*OpsListResourcesResponseV1) v1ListInternalResourcesRes() {}
+
+// Parent filter types. Each resourceType allows only some of them: pool (cmek, activeDirectory,
+// host), volume (pool, svm, volumePerformanceGroup, backupVault, backupPolicy), snapshot (volume),
+// replication (volume, sourceVolume, destinationVolume), backup (backupVault, volume), job
+// (resource).
+// Ref: #/components/schemas/OpsParentType_v1
+type OpsParentTypeV1 string
+
+const (
+	OpsParentTypeV1Pool                   OpsParentTypeV1 = "pool"
+	OpsParentTypeV1Volume                 OpsParentTypeV1 = "volume"
+	OpsParentTypeV1Svm                    OpsParentTypeV1 = "svm"
+	OpsParentTypeV1VolumePerformanceGroup OpsParentTypeV1 = "volumePerformanceGroup"
+	OpsParentTypeV1BackupVault            OpsParentTypeV1 = "backupVault"
+	OpsParentTypeV1BackupPolicy           OpsParentTypeV1 = "backupPolicy"
+	OpsParentTypeV1Cmek                   OpsParentTypeV1 = "cmek"
+	OpsParentTypeV1ActiveDirectory        OpsParentTypeV1 = "activeDirectory"
+	OpsParentTypeV1Host                   OpsParentTypeV1 = "host"
+	OpsParentTypeV1SourceVolume           OpsParentTypeV1 = "sourceVolume"
+	OpsParentTypeV1DestinationVolume      OpsParentTypeV1 = "destinationVolume"
+	OpsParentTypeV1Resource               OpsParentTypeV1 = "resource"
+)
+
+// AllValues returns all OpsParentTypeV1 values.
+func (OpsParentTypeV1) AllValues() []OpsParentTypeV1 {
+	return []OpsParentTypeV1{
+		OpsParentTypeV1Pool,
+		OpsParentTypeV1Volume,
+		OpsParentTypeV1Svm,
+		OpsParentTypeV1VolumePerformanceGroup,
+		OpsParentTypeV1BackupVault,
+		OpsParentTypeV1BackupPolicy,
+		OpsParentTypeV1Cmek,
+		OpsParentTypeV1ActiveDirectory,
+		OpsParentTypeV1Host,
+		OpsParentTypeV1SourceVolume,
+		OpsParentTypeV1DestinationVolume,
+		OpsParentTypeV1Resource,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OpsParentTypeV1) MarshalText() ([]byte, error) {
+	switch s {
+	case OpsParentTypeV1Pool:
+		return []byte(s), nil
+	case OpsParentTypeV1Volume:
+		return []byte(s), nil
+	case OpsParentTypeV1Svm:
+		return []byte(s), nil
+	case OpsParentTypeV1VolumePerformanceGroup:
+		return []byte(s), nil
+	case OpsParentTypeV1BackupVault:
+		return []byte(s), nil
+	case OpsParentTypeV1BackupPolicy:
+		return []byte(s), nil
+	case OpsParentTypeV1Cmek:
+		return []byte(s), nil
+	case OpsParentTypeV1ActiveDirectory:
+		return []byte(s), nil
+	case OpsParentTypeV1Host:
+		return []byte(s), nil
+	case OpsParentTypeV1SourceVolume:
+		return []byte(s), nil
+	case OpsParentTypeV1DestinationVolume:
+		return []byte(s), nil
+	case OpsParentTypeV1Resource:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OpsParentTypeV1) UnmarshalText(data []byte) error {
+	switch OpsParentTypeV1(data) {
+	case OpsParentTypeV1Pool:
+		*s = OpsParentTypeV1Pool
+		return nil
+	case OpsParentTypeV1Volume:
+		*s = OpsParentTypeV1Volume
+		return nil
+	case OpsParentTypeV1Svm:
+		*s = OpsParentTypeV1Svm
+		return nil
+	case OpsParentTypeV1VolumePerformanceGroup:
+		*s = OpsParentTypeV1VolumePerformanceGroup
+		return nil
+	case OpsParentTypeV1BackupVault:
+		*s = OpsParentTypeV1BackupVault
+		return nil
+	case OpsParentTypeV1BackupPolicy:
+		*s = OpsParentTypeV1BackupPolicy
+		return nil
+	case OpsParentTypeV1Cmek:
+		*s = OpsParentTypeV1Cmek
+		return nil
+	case OpsParentTypeV1ActiveDirectory:
+		*s = OpsParentTypeV1ActiveDirectory
+		return nil
+	case OpsParentTypeV1Host:
+		*s = OpsParentTypeV1Host
+		return nil
+	case OpsParentTypeV1SourceVolume:
+		*s = OpsParentTypeV1SourceVolume
+		return nil
+	case OpsParentTypeV1DestinationVolume:
+		*s = OpsParentTypeV1DestinationVolume
+		return nil
+	case OpsParentTypeV1Resource:
+		*s = OpsParentTypeV1Resource
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/OpsParent_v1
+type OpsParentV1 struct {
+	Type OpsParentTypeV1 `json:"type"`
+	// Parent uuid.
+	ID string `json:"id"`
+}
+
+// GetType returns the value of Type.
+func (s *OpsParentV1) GetType() OpsParentTypeV1 {
+	return s.Type
+}
+
+// GetID returns the value of ID.
+func (s *OpsParentV1) GetID() string {
+	return s.ID
+}
+
+// SetType sets the value of Type.
+func (s *OpsParentV1) SetType(val OpsParentTypeV1) {
+	s.Type = val
+}
+
+// SetID sets the value of ID.
+func (s *OpsParentV1) SetID(val string) {
+	s.ID = val
+}
+
+// Ref: #/components/schemas/OpsPendingActivity_v1
+type OpsPendingActivityV1 struct {
+	ActivityId   OptString `json:"activityId"`
+	ActivityType OptString `json:"activityType"`
+	State        OptString `json:"state"`
+	Attempt      OptInt32  `json:"attempt"`
+	// 0 means no limit.
+	MaximumAttempts         OptInt32    `json:"maximumAttempts"`
+	ScheduledTime           OptDateTime `json:"scheduledTime"`
+	LastStartedTime         OptDateTime `json:"lastStartedTime"`
+	LastHeartbeatTime       OptDateTime `json:"lastHeartbeatTime"`
+	LastAttemptCompleteTime OptDateTime `json:"lastAttemptCompleteTime"`
+	// When the next retry starts; set while in retry backoff.
+	NextAttemptScheduleTime     OptDateTime `json:"nextAttemptScheduleTime"`
+	CurrentRetryIntervalSeconds OptFloat64  `json:"currentRetryIntervalSeconds"`
+	ExpirationTime              OptDateTime `json:"expirationTime"`
+	Paused                      OptBool     `json:"paused"`
+	// Temporal worker identity, usually pid@host.
+	LastWorkerIdentity OptString `json:"lastWorkerIdentity"`
+	LastFailureType    OptString `json:"lastFailureType"`
+}
+
+// GetActivityId returns the value of ActivityId.
+func (s *OpsPendingActivityV1) GetActivityId() OptString {
+	return s.ActivityId
+}
+
+// GetActivityType returns the value of ActivityType.
+func (s *OpsPendingActivityV1) GetActivityType() OptString {
+	return s.ActivityType
+}
+
+// GetState returns the value of State.
+func (s *OpsPendingActivityV1) GetState() OptString {
+	return s.State
+}
+
+// GetAttempt returns the value of Attempt.
+func (s *OpsPendingActivityV1) GetAttempt() OptInt32 {
+	return s.Attempt
+}
+
+// GetMaximumAttempts returns the value of MaximumAttempts.
+func (s *OpsPendingActivityV1) GetMaximumAttempts() OptInt32 {
+	return s.MaximumAttempts
+}
+
+// GetScheduledTime returns the value of ScheduledTime.
+func (s *OpsPendingActivityV1) GetScheduledTime() OptDateTime {
+	return s.ScheduledTime
+}
+
+// GetLastStartedTime returns the value of LastStartedTime.
+func (s *OpsPendingActivityV1) GetLastStartedTime() OptDateTime {
+	return s.LastStartedTime
+}
+
+// GetLastHeartbeatTime returns the value of LastHeartbeatTime.
+func (s *OpsPendingActivityV1) GetLastHeartbeatTime() OptDateTime {
+	return s.LastHeartbeatTime
+}
+
+// GetLastAttemptCompleteTime returns the value of LastAttemptCompleteTime.
+func (s *OpsPendingActivityV1) GetLastAttemptCompleteTime() OptDateTime {
+	return s.LastAttemptCompleteTime
+}
+
+// GetNextAttemptScheduleTime returns the value of NextAttemptScheduleTime.
+func (s *OpsPendingActivityV1) GetNextAttemptScheduleTime() OptDateTime {
+	return s.NextAttemptScheduleTime
+}
+
+// GetCurrentRetryIntervalSeconds returns the value of CurrentRetryIntervalSeconds.
+func (s *OpsPendingActivityV1) GetCurrentRetryIntervalSeconds() OptFloat64 {
+	return s.CurrentRetryIntervalSeconds
+}
+
+// GetExpirationTime returns the value of ExpirationTime.
+func (s *OpsPendingActivityV1) GetExpirationTime() OptDateTime {
+	return s.ExpirationTime
+}
+
+// GetPaused returns the value of Paused.
+func (s *OpsPendingActivityV1) GetPaused() OptBool {
+	return s.Paused
+}
+
+// GetLastWorkerIdentity returns the value of LastWorkerIdentity.
+func (s *OpsPendingActivityV1) GetLastWorkerIdentity() OptString {
+	return s.LastWorkerIdentity
+}
+
+// GetLastFailureType returns the value of LastFailureType.
+func (s *OpsPendingActivityV1) GetLastFailureType() OptString {
+	return s.LastFailureType
+}
+
+// SetActivityId sets the value of ActivityId.
+func (s *OpsPendingActivityV1) SetActivityId(val OptString) {
+	s.ActivityId = val
+}
+
+// SetActivityType sets the value of ActivityType.
+func (s *OpsPendingActivityV1) SetActivityType(val OptString) {
+	s.ActivityType = val
+}
+
+// SetState sets the value of State.
+func (s *OpsPendingActivityV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetAttempt sets the value of Attempt.
+func (s *OpsPendingActivityV1) SetAttempt(val OptInt32) {
+	s.Attempt = val
+}
+
+// SetMaximumAttempts sets the value of MaximumAttempts.
+func (s *OpsPendingActivityV1) SetMaximumAttempts(val OptInt32) {
+	s.MaximumAttempts = val
+}
+
+// SetScheduledTime sets the value of ScheduledTime.
+func (s *OpsPendingActivityV1) SetScheduledTime(val OptDateTime) {
+	s.ScheduledTime = val
+}
+
+// SetLastStartedTime sets the value of LastStartedTime.
+func (s *OpsPendingActivityV1) SetLastStartedTime(val OptDateTime) {
+	s.LastStartedTime = val
+}
+
+// SetLastHeartbeatTime sets the value of LastHeartbeatTime.
+func (s *OpsPendingActivityV1) SetLastHeartbeatTime(val OptDateTime) {
+	s.LastHeartbeatTime = val
+}
+
+// SetLastAttemptCompleteTime sets the value of LastAttemptCompleteTime.
+func (s *OpsPendingActivityV1) SetLastAttemptCompleteTime(val OptDateTime) {
+	s.LastAttemptCompleteTime = val
+}
+
+// SetNextAttemptScheduleTime sets the value of NextAttemptScheduleTime.
+func (s *OpsPendingActivityV1) SetNextAttemptScheduleTime(val OptDateTime) {
+	s.NextAttemptScheduleTime = val
+}
+
+// SetCurrentRetryIntervalSeconds sets the value of CurrentRetryIntervalSeconds.
+func (s *OpsPendingActivityV1) SetCurrentRetryIntervalSeconds(val OptFloat64) {
+	s.CurrentRetryIntervalSeconds = val
+}
+
+// SetExpirationTime sets the value of ExpirationTime.
+func (s *OpsPendingActivityV1) SetExpirationTime(val OptDateTime) {
+	s.ExpirationTime = val
+}
+
+// SetPaused sets the value of Paused.
+func (s *OpsPendingActivityV1) SetPaused(val OptBool) {
+	s.Paused = val
+}
+
+// SetLastWorkerIdentity sets the value of LastWorkerIdentity.
+func (s *OpsPendingActivityV1) SetLastWorkerIdentity(val OptString) {
+	s.LastWorkerIdentity = val
+}
+
+// SetLastFailureType sets the value of LastFailureType.
+func (s *OpsPendingActivityV1) SetLastFailureType(val OptString) {
+	s.LastFailureType = val
+}
+
+// Ref: #/components/schemas/OpsPendingChild_v1
+type OpsPendingChildV1 struct {
+	WorkflowId        OptString `json:"workflowId"`
+	RunId             OptString `json:"runId"`
+	WorkflowType      OptString `json:"workflowType"`
+	ParentClosePolicy OptString `json:"parentClosePolicy"`
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *OpsPendingChildV1) GetWorkflowId() OptString {
+	return s.WorkflowId
+}
+
+// GetRunId returns the value of RunId.
+func (s *OpsPendingChildV1) GetRunId() OptString {
+	return s.RunId
+}
+
+// GetWorkflowType returns the value of WorkflowType.
+func (s *OpsPendingChildV1) GetWorkflowType() OptString {
+	return s.WorkflowType
+}
+
+// GetParentClosePolicy returns the value of ParentClosePolicy.
+func (s *OpsPendingChildV1) GetParentClosePolicy() OptString {
+	return s.ParentClosePolicy
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *OpsPendingChildV1) SetWorkflowId(val OptString) {
+	s.WorkflowId = val
+}
+
+// SetRunId sets the value of RunId.
+func (s *OpsPendingChildV1) SetRunId(val OptString) {
+	s.RunId = val
+}
+
+// SetWorkflowType sets the value of WorkflowType.
+func (s *OpsPendingChildV1) SetWorkflowType(val OptString) {
+	s.WorkflowType = val
+}
+
+// SetParentClosePolicy sets the value of ParentClosePolicy.
+func (s *OpsPendingChildV1) SetParentClosePolicy(val OptString) {
+	s.ParentClosePolicy = val
+}
+
+// A workflow task that is scheduled or started but not completed. A high attempt means workers keep
+// failing it.
+// Ref: #/components/schemas/OpsPendingWorkflowTask_v1
+type OpsPendingWorkflowTaskV1 struct {
+	State                 OptString   `json:"state"`
+	Attempt               OptInt32    `json:"attempt"`
+	ScheduledTime         OptDateTime `json:"scheduledTime"`
+	OriginalScheduledTime OptDateTime `json:"originalScheduledTime"`
+	StartedTime           OptDateTime `json:"startedTime"`
+}
+
+// GetState returns the value of State.
+func (s *OpsPendingWorkflowTaskV1) GetState() OptString {
+	return s.State
+}
+
+// GetAttempt returns the value of Attempt.
+func (s *OpsPendingWorkflowTaskV1) GetAttempt() OptInt32 {
+	return s.Attempt
+}
+
+// GetScheduledTime returns the value of ScheduledTime.
+func (s *OpsPendingWorkflowTaskV1) GetScheduledTime() OptDateTime {
+	return s.ScheduledTime
+}
+
+// GetOriginalScheduledTime returns the value of OriginalScheduledTime.
+func (s *OpsPendingWorkflowTaskV1) GetOriginalScheduledTime() OptDateTime {
+	return s.OriginalScheduledTime
+}
+
+// GetStartedTime returns the value of StartedTime.
+func (s *OpsPendingWorkflowTaskV1) GetStartedTime() OptDateTime {
+	return s.StartedTime
+}
+
+// SetState sets the value of State.
+func (s *OpsPendingWorkflowTaskV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetAttempt sets the value of Attempt.
+func (s *OpsPendingWorkflowTaskV1) SetAttempt(val OptInt32) {
+	s.Attempt = val
+}
+
+// SetScheduledTime sets the value of ScheduledTime.
+func (s *OpsPendingWorkflowTaskV1) SetScheduledTime(val OptDateTime) {
+	s.ScheduledTime = val
+}
+
+// SetOriginalScheduledTime sets the value of OriginalScheduledTime.
+func (s *OpsPendingWorkflowTaskV1) SetOriginalScheduledTime(val OptDateTime) {
+	s.OriginalScheduledTime = val
+}
+
+// SetStartedTime sets the value of StartedTime.
+func (s *OpsPendingWorkflowTaskV1) SetStartedTime(val OptDateTime) {
+	s.StartedTime = val
+}
+
+// Certificate rotation state of the pool ONTAP credentials, read from pool_credentials. Certificate
+// and secret IDs are never returned; times are parsed from the timestamp that rotation writes at the
+// end of each certificate ID (UTC). Certificates from pool create have no timestamp, so
+// activeCertificateRotatedAt is absent until the first rotation. To see the rotation jobs themselves,
+//
+//	list job with parent resource=<pool uuid> and filter type FORCE_POOL_CERTIFICATE_ROTATION or
+//
+// RECONCILE_POOL_CERTIFICATE_AUTHORITY.
+// Ref: #/components/schemas/OpsPoolCertificateRotation_v1
+type OpsPoolCertificateRotationV1 struct {
+	// When the active certificate was issued by a rotation.
+	ActiveCertificateRotatedAt OptDateTime `json:"activeCertificateRotatedAt"`
+	// True when a new certificate, secret or CA is staged but not promoted yet.
+	RotationStaged bool `json:"rotationStaged"`
+	// When the staged certificate was created.
+	StagedCertificateCreatedAt OptDateTime `json:"stagedCertificateCreatedAt"`
+	// CA of the active certificate (ca_pool_project/ca_pool/ca).
+	CaUri OptString `json:"caUri"`
+	// CA of the staged certificate.
+	StagedCaUri OptString `json:"stagedCaUri"`
+}
+
+// GetActiveCertificateRotatedAt returns the value of ActiveCertificateRotatedAt.
+func (s *OpsPoolCertificateRotationV1) GetActiveCertificateRotatedAt() OptDateTime {
+	return s.ActiveCertificateRotatedAt
+}
+
+// GetRotationStaged returns the value of RotationStaged.
+func (s *OpsPoolCertificateRotationV1) GetRotationStaged() bool {
+	return s.RotationStaged
+}
+
+// GetStagedCertificateCreatedAt returns the value of StagedCertificateCreatedAt.
+func (s *OpsPoolCertificateRotationV1) GetStagedCertificateCreatedAt() OptDateTime {
+	return s.StagedCertificateCreatedAt
+}
+
+// GetCaUri returns the value of CaUri.
+func (s *OpsPoolCertificateRotationV1) GetCaUri() OptString {
+	return s.CaUri
+}
+
+// GetStagedCaUri returns the value of StagedCaUri.
+func (s *OpsPoolCertificateRotationV1) GetStagedCaUri() OptString {
+	return s.StagedCaUri
+}
+
+// SetActiveCertificateRotatedAt sets the value of ActiveCertificateRotatedAt.
+func (s *OpsPoolCertificateRotationV1) SetActiveCertificateRotatedAt(val OptDateTime) {
+	s.ActiveCertificateRotatedAt = val
+}
+
+// SetRotationStaged sets the value of RotationStaged.
+func (s *OpsPoolCertificateRotationV1) SetRotationStaged(val bool) {
+	s.RotationStaged = val
+}
+
+// SetStagedCertificateCreatedAt sets the value of StagedCertificateCreatedAt.
+func (s *OpsPoolCertificateRotationV1) SetStagedCertificateCreatedAt(val OptDateTime) {
+	s.StagedCertificateCreatedAt = val
+}
+
+// SetCaUri sets the value of CaUri.
+func (s *OpsPoolCertificateRotationV1) SetCaUri(val OptString) {
+	s.CaUri = val
+}
+
+// SetStagedCaUri sets the value of StagedCaUri.
+func (s *OpsPoolCertificateRotationV1) SetStagedCaUri(val OptString) {
+	s.StagedCaUri = val
+}
+
+// Reviewed allowlist of persisted pools row fields. No credentials, secret locators or VLM config.
+// Ref: #/components/schemas/OpsPool_v1
+type OpsPoolV1 struct {
+	ResourceType string      `json:"resourceType"`
+	Source       OpsSourceV1 `json:"source"`
+	UUID         string      `json:"uuid"`
+	Name         OptString   `json:"name"`
+	Description  OptString   `json:"description"`
+	State        OptString   `json:"state"`
+	// Present only when it is a known catalog phrase.
+	StateDetails OptString `json:"stateDetails"`
+	// True when stored details were free text and were not returned.
+	StateDetailsWithheld OptBool   `json:"stateDetailsWithheld"`
+	ProjectNumber        OptString `json:"projectNumber"`
+	ServiceLevel         OptString `json:"serviceLevel"`
+	SizeInBytes          OptInt64  `json:"sizeInBytes"`
+	UsedBytes            OptInt64  `json:"usedBytes"`
+	Network              OptString `json:"network"`
+	AllowAutoTiering     OptBool   `json:"allowAutoTiering"`
+	QosType              OptString `json:"qosType"`
+	DeploymentName       OptString `json:"deploymentName"`
+	HostUuid             OptString `json:"hostUuid"`
+	KmsConfigUuid        OptString `json:"kmsConfigUuid"`
+	ActiveDirectoryUuid  OptString `json:"activeDirectoryUuid"`
+	ApiAccessMode        OptString `json:"apiAccessMode"`
+	LargeCapacity        OptBool   `json:"largeCapacity"`
+	IsPreview            OptBool   `json:"isPreview"`
+	SatisfiesZi          OptBool   `json:"satisfiesZi"`
+	SatisfiesZs          OptBool   `json:"satisfiesZs"`
+	PrimaryZone          OptString `json:"primaryZone"`
+	SecondaryZone        OptString `json:"secondaryZone"`
+	IsRegionalHa         OptBool   `json:"isRegionalHa"`
+	IsTrueZonal          OptBool   `json:"isTrueZonal"`
+	ThroughputMibps      OptInt64  `json:"throughputMibps"`
+	Iops                 OptInt64  `json:"iops"`
+	WorkflowId           OptString `json:"workflowId"`
+	// 1 = password/secret, 2 = certificate.
+	AuthType             OptInt32                        `json:"authType"`
+	CredentialConfigured OptBool                         `json:"credentialConfigured"`
+	CertificateRotation  OptOpsPoolCertificateRotationV1 `json:"certificateRotation"`
+	CreatedAt            time.Time                       `json:"createdAt"`
+	UpdatedAt            time.Time                       `json:"updatedAt"`
+	DeletedAt            NilDateTime                     `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsPoolV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsPoolV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsPoolV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsPoolV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsPoolV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsPoolV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsPoolV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsPoolV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsPoolV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetServiceLevel returns the value of ServiceLevel.
+func (s *OpsPoolV1) GetServiceLevel() OptString {
+	return s.ServiceLevel
+}
+
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *OpsPoolV1) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
+}
+
+// GetUsedBytes returns the value of UsedBytes.
+func (s *OpsPoolV1) GetUsedBytes() OptInt64 {
+	return s.UsedBytes
+}
+
+// GetNetwork returns the value of Network.
+func (s *OpsPoolV1) GetNetwork() OptString {
+	return s.Network
+}
+
+// GetAllowAutoTiering returns the value of AllowAutoTiering.
+func (s *OpsPoolV1) GetAllowAutoTiering() OptBool {
+	return s.AllowAutoTiering
+}
+
+// GetQosType returns the value of QosType.
+func (s *OpsPoolV1) GetQosType() OptString {
+	return s.QosType
+}
+
+// GetDeploymentName returns the value of DeploymentName.
+func (s *OpsPoolV1) GetDeploymentName() OptString {
+	return s.DeploymentName
+}
+
+// GetHostUuid returns the value of HostUuid.
+func (s *OpsPoolV1) GetHostUuid() OptString {
+	return s.HostUuid
+}
+
+// GetKmsConfigUuid returns the value of KmsConfigUuid.
+func (s *OpsPoolV1) GetKmsConfigUuid() OptString {
+	return s.KmsConfigUuid
+}
+
+// GetActiveDirectoryUuid returns the value of ActiveDirectoryUuid.
+func (s *OpsPoolV1) GetActiveDirectoryUuid() OptString {
+	return s.ActiveDirectoryUuid
+}
+
+// GetApiAccessMode returns the value of ApiAccessMode.
+func (s *OpsPoolV1) GetApiAccessMode() OptString {
+	return s.ApiAccessMode
+}
+
+// GetLargeCapacity returns the value of LargeCapacity.
+func (s *OpsPoolV1) GetLargeCapacity() OptBool {
+	return s.LargeCapacity
+}
+
+// GetIsPreview returns the value of IsPreview.
+func (s *OpsPoolV1) GetIsPreview() OptBool {
+	return s.IsPreview
+}
+
+// GetSatisfiesZi returns the value of SatisfiesZi.
+func (s *OpsPoolV1) GetSatisfiesZi() OptBool {
+	return s.SatisfiesZi
+}
+
+// GetSatisfiesZs returns the value of SatisfiesZs.
+func (s *OpsPoolV1) GetSatisfiesZs() OptBool {
+	return s.SatisfiesZs
+}
+
+// GetPrimaryZone returns the value of PrimaryZone.
+func (s *OpsPoolV1) GetPrimaryZone() OptString {
+	return s.PrimaryZone
+}
+
+// GetSecondaryZone returns the value of SecondaryZone.
+func (s *OpsPoolV1) GetSecondaryZone() OptString {
+	return s.SecondaryZone
+}
+
+// GetIsRegionalHa returns the value of IsRegionalHa.
+func (s *OpsPoolV1) GetIsRegionalHa() OptBool {
+	return s.IsRegionalHa
+}
+
+// GetIsTrueZonal returns the value of IsTrueZonal.
+func (s *OpsPoolV1) GetIsTrueZonal() OptBool {
+	return s.IsTrueZonal
+}
+
+// GetThroughputMibps returns the value of ThroughputMibps.
+func (s *OpsPoolV1) GetThroughputMibps() OptInt64 {
+	return s.ThroughputMibps
+}
+
+// GetIops returns the value of Iops.
+func (s *OpsPoolV1) GetIops() OptInt64 {
+	return s.Iops
+}
+
+// GetWorkflowId returns the value of WorkflowId.
+func (s *OpsPoolV1) GetWorkflowId() OptString {
+	return s.WorkflowId
+}
+
+// GetAuthType returns the value of AuthType.
+func (s *OpsPoolV1) GetAuthType() OptInt32 {
+	return s.AuthType
+}
+
+// GetCredentialConfigured returns the value of CredentialConfigured.
+func (s *OpsPoolV1) GetCredentialConfigured() OptBool {
+	return s.CredentialConfigured
+}
+
+// GetCertificateRotation returns the value of CertificateRotation.
+func (s *OpsPoolV1) GetCertificateRotation() OptOpsPoolCertificateRotationV1 {
+	return s.CertificateRotation
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsPoolV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsPoolV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsPoolV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsPoolV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsPoolV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsPoolV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsPoolV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsPoolV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsPoolV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsPoolV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsPoolV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsPoolV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetServiceLevel sets the value of ServiceLevel.
+func (s *OpsPoolV1) SetServiceLevel(val OptString) {
+	s.ServiceLevel = val
+}
+
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *OpsPoolV1) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
+}
+
+// SetUsedBytes sets the value of UsedBytes.
+func (s *OpsPoolV1) SetUsedBytes(val OptInt64) {
+	s.UsedBytes = val
+}
+
+// SetNetwork sets the value of Network.
+func (s *OpsPoolV1) SetNetwork(val OptString) {
+	s.Network = val
+}
+
+// SetAllowAutoTiering sets the value of AllowAutoTiering.
+func (s *OpsPoolV1) SetAllowAutoTiering(val OptBool) {
+	s.AllowAutoTiering = val
+}
+
+// SetQosType sets the value of QosType.
+func (s *OpsPoolV1) SetQosType(val OptString) {
+	s.QosType = val
+}
+
+// SetDeploymentName sets the value of DeploymentName.
+func (s *OpsPoolV1) SetDeploymentName(val OptString) {
+	s.DeploymentName = val
+}
+
+// SetHostUuid sets the value of HostUuid.
+func (s *OpsPoolV1) SetHostUuid(val OptString) {
+	s.HostUuid = val
+}
+
+// SetKmsConfigUuid sets the value of KmsConfigUuid.
+func (s *OpsPoolV1) SetKmsConfigUuid(val OptString) {
+	s.KmsConfigUuid = val
+}
+
+// SetActiveDirectoryUuid sets the value of ActiveDirectoryUuid.
+func (s *OpsPoolV1) SetActiveDirectoryUuid(val OptString) {
+	s.ActiveDirectoryUuid = val
+}
+
+// SetApiAccessMode sets the value of ApiAccessMode.
+func (s *OpsPoolV1) SetApiAccessMode(val OptString) {
+	s.ApiAccessMode = val
+}
+
+// SetLargeCapacity sets the value of LargeCapacity.
+func (s *OpsPoolV1) SetLargeCapacity(val OptBool) {
+	s.LargeCapacity = val
+}
+
+// SetIsPreview sets the value of IsPreview.
+func (s *OpsPoolV1) SetIsPreview(val OptBool) {
+	s.IsPreview = val
+}
+
+// SetSatisfiesZi sets the value of SatisfiesZi.
+func (s *OpsPoolV1) SetSatisfiesZi(val OptBool) {
+	s.SatisfiesZi = val
+}
+
+// SetSatisfiesZs sets the value of SatisfiesZs.
+func (s *OpsPoolV1) SetSatisfiesZs(val OptBool) {
+	s.SatisfiesZs = val
+}
+
+// SetPrimaryZone sets the value of PrimaryZone.
+func (s *OpsPoolV1) SetPrimaryZone(val OptString) {
+	s.PrimaryZone = val
+}
+
+// SetSecondaryZone sets the value of SecondaryZone.
+func (s *OpsPoolV1) SetSecondaryZone(val OptString) {
+	s.SecondaryZone = val
+}
+
+// SetIsRegionalHa sets the value of IsRegionalHa.
+func (s *OpsPoolV1) SetIsRegionalHa(val OptBool) {
+	s.IsRegionalHa = val
+}
+
+// SetIsTrueZonal sets the value of IsTrueZonal.
+func (s *OpsPoolV1) SetIsTrueZonal(val OptBool) {
+	s.IsTrueZonal = val
+}
+
+// SetThroughputMibps sets the value of ThroughputMibps.
+func (s *OpsPoolV1) SetThroughputMibps(val OptInt64) {
+	s.ThroughputMibps = val
+}
+
+// SetIops sets the value of Iops.
+func (s *OpsPoolV1) SetIops(val OptInt64) {
+	s.Iops = val
+}
+
+// SetWorkflowId sets the value of WorkflowId.
+func (s *OpsPoolV1) SetWorkflowId(val OptString) {
+	s.WorkflowId = val
+}
+
+// SetAuthType sets the value of AuthType.
+func (s *OpsPoolV1) SetAuthType(val OptInt32) {
+	s.AuthType = val
+}
+
+// SetCredentialConfigured sets the value of CredentialConfigured.
+func (s *OpsPoolV1) SetCredentialConfigured(val OptBool) {
+	s.CredentialConfigured = val
+}
+
+// SetCertificateRotation sets the value of CertificateRotation.
+func (s *OpsPoolV1) SetCertificateRotation(val OptOpsPoolCertificateRotationV1) {
+	s.CertificateRotation = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsPoolV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsPoolV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsPoolV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Reviewed allowlist. No peering passphrases or peer commands; raw transfer errors are reported as
+// presence flags only.
+// Ref: #/components/schemas/OpsReplication_v1
+type OpsReplicationV1 struct {
+	ResourceType             string      `json:"resourceType"`
+	Source                   OpsSourceV1 `json:"source"`
+	UUID                     string      `json:"uuid"`
+	Name                     OptString   `json:"name"`
+	Description              OptString   `json:"description"`
+	State                    OptString   `json:"state"`
+	StateDetails             OptString   `json:"stateDetails"`
+	StateDetailsWithheld     OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber            OptString   `json:"projectNumber"`
+	VolumeUuid               OptString   `json:"volumeUuid"`
+	VolumeName               OptString   `json:"volumeName"`
+	MirrorState              OptString   `json:"mirrorState"`
+	RelationshipStatus       OptString   `json:"relationshipStatus"`
+	Healthy                  OptBool     `json:"healthy"`
+	UnhealthyReasonPresent   OptBool     `json:"unhealthyReasonPresent"`
+	LastTransferErrorPresent OptBool     `json:"lastTransferErrorPresent"`
+	LagTime                  OptInt64    `json:"lagTime"`
+	TotalProgress            OptInt64    `json:"totalProgress"`
+	TotalTransferBytes       OptInt64    `json:"totalTransferBytes"`
+	TotalTransferTimeSecs    OptInt64    `json:"totalTransferTimeSecs"`
+	LastTransferSize         OptInt64    `json:"lastTransferSize"`
+	LastTransferDuration     OptInt64    `json:"lastTransferDuration"`
+	LastTransferEndTime      OptDateTime `json:"lastTransferEndTime"`
+	ProgressLastUpdated      OptDateTime `json:"progressLastUpdated"`
+	LastUpdatedFromOntap     OptDateTime `json:"lastUpdatedFromOntap"`
+	EndpointType             OptString   `json:"endpointType"`
+	ReplicationType          OptString   `json:"replicationType"`
+	ReplicationSchedule      OptString   `json:"replicationSchedule"`
+	SourcePoolUuid           OptString   `json:"sourcePoolUuid"`
+	SourceVolumeUuid         OptString   `json:"sourceVolumeUuid"`
+	SourceVolumeName         OptString   `json:"sourceVolumeName"`
+	SourceSvmName            OptString   `json:"sourceSvmName"`
+	SourceLocation           OptString   `json:"sourceLocation"`
+	DestinationPoolUuid      OptString   `json:"destinationPoolUuid"`
+	DestinationVolumeUuid    OptString   `json:"destinationVolumeUuid"`
+	DestinationVolumeName    OptString   `json:"destinationVolumeName"`
+	DestinationSvmName       OptString   `json:"destinationSvmName"`
+	DestinationLocation      OptString   `json:"destinationLocation"`
+	ExternalUuid             OptString   `json:"externalUuid"`
+	IsHybrid                 OptBool     `json:"isHybrid"`
+	CreatedAt                time.Time   `json:"createdAt"`
+	UpdatedAt                time.Time   `json:"updatedAt"`
+	DeletedAt                NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsReplicationV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsReplicationV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsReplicationV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsReplicationV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsReplicationV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsReplicationV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsReplicationV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsReplicationV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsReplicationV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetVolumeUuid returns the value of VolumeUuid.
+func (s *OpsReplicationV1) GetVolumeUuid() OptString {
+	return s.VolumeUuid
+}
+
+// GetVolumeName returns the value of VolumeName.
+func (s *OpsReplicationV1) GetVolumeName() OptString {
+	return s.VolumeName
+}
+
+// GetMirrorState returns the value of MirrorState.
+func (s *OpsReplicationV1) GetMirrorState() OptString {
+	return s.MirrorState
+}
+
+// GetRelationshipStatus returns the value of RelationshipStatus.
+func (s *OpsReplicationV1) GetRelationshipStatus() OptString {
+	return s.RelationshipStatus
+}
+
+// GetHealthy returns the value of Healthy.
+func (s *OpsReplicationV1) GetHealthy() OptBool {
+	return s.Healthy
+}
+
+// GetUnhealthyReasonPresent returns the value of UnhealthyReasonPresent.
+func (s *OpsReplicationV1) GetUnhealthyReasonPresent() OptBool {
+	return s.UnhealthyReasonPresent
+}
+
+// GetLastTransferErrorPresent returns the value of LastTransferErrorPresent.
+func (s *OpsReplicationV1) GetLastTransferErrorPresent() OptBool {
+	return s.LastTransferErrorPresent
+}
+
+// GetLagTime returns the value of LagTime.
+func (s *OpsReplicationV1) GetLagTime() OptInt64 {
+	return s.LagTime
+}
+
+// GetTotalProgress returns the value of TotalProgress.
+func (s *OpsReplicationV1) GetTotalProgress() OptInt64 {
+	return s.TotalProgress
+}
+
+// GetTotalTransferBytes returns the value of TotalTransferBytes.
+func (s *OpsReplicationV1) GetTotalTransferBytes() OptInt64 {
+	return s.TotalTransferBytes
+}
+
+// GetTotalTransferTimeSecs returns the value of TotalTransferTimeSecs.
+func (s *OpsReplicationV1) GetTotalTransferTimeSecs() OptInt64 {
+	return s.TotalTransferTimeSecs
+}
+
+// GetLastTransferSize returns the value of LastTransferSize.
+func (s *OpsReplicationV1) GetLastTransferSize() OptInt64 {
+	return s.LastTransferSize
+}
+
+// GetLastTransferDuration returns the value of LastTransferDuration.
+func (s *OpsReplicationV1) GetLastTransferDuration() OptInt64 {
+	return s.LastTransferDuration
+}
+
+// GetLastTransferEndTime returns the value of LastTransferEndTime.
+func (s *OpsReplicationV1) GetLastTransferEndTime() OptDateTime {
+	return s.LastTransferEndTime
+}
+
+// GetProgressLastUpdated returns the value of ProgressLastUpdated.
+func (s *OpsReplicationV1) GetProgressLastUpdated() OptDateTime {
+	return s.ProgressLastUpdated
+}
+
+// GetLastUpdatedFromOntap returns the value of LastUpdatedFromOntap.
+func (s *OpsReplicationV1) GetLastUpdatedFromOntap() OptDateTime {
+	return s.LastUpdatedFromOntap
+}
+
+// GetEndpointType returns the value of EndpointType.
+func (s *OpsReplicationV1) GetEndpointType() OptString {
+	return s.EndpointType
+}
+
+// GetReplicationType returns the value of ReplicationType.
+func (s *OpsReplicationV1) GetReplicationType() OptString {
+	return s.ReplicationType
+}
+
+// GetReplicationSchedule returns the value of ReplicationSchedule.
+func (s *OpsReplicationV1) GetReplicationSchedule() OptString {
+	return s.ReplicationSchedule
+}
+
+// GetSourcePoolUuid returns the value of SourcePoolUuid.
+func (s *OpsReplicationV1) GetSourcePoolUuid() OptString {
+	return s.SourcePoolUuid
+}
+
+// GetSourceVolumeUuid returns the value of SourceVolumeUuid.
+func (s *OpsReplicationV1) GetSourceVolumeUuid() OptString {
+	return s.SourceVolumeUuid
+}
+
+// GetSourceVolumeName returns the value of SourceVolumeName.
+func (s *OpsReplicationV1) GetSourceVolumeName() OptString {
+	return s.SourceVolumeName
+}
+
+// GetSourceSvmName returns the value of SourceSvmName.
+func (s *OpsReplicationV1) GetSourceSvmName() OptString {
+	return s.SourceSvmName
+}
+
+// GetSourceLocation returns the value of SourceLocation.
+func (s *OpsReplicationV1) GetSourceLocation() OptString {
+	return s.SourceLocation
+}
+
+// GetDestinationPoolUuid returns the value of DestinationPoolUuid.
+func (s *OpsReplicationV1) GetDestinationPoolUuid() OptString {
+	return s.DestinationPoolUuid
+}
+
+// GetDestinationVolumeUuid returns the value of DestinationVolumeUuid.
+func (s *OpsReplicationV1) GetDestinationVolumeUuid() OptString {
+	return s.DestinationVolumeUuid
+}
+
+// GetDestinationVolumeName returns the value of DestinationVolumeName.
+func (s *OpsReplicationV1) GetDestinationVolumeName() OptString {
+	return s.DestinationVolumeName
+}
+
+// GetDestinationSvmName returns the value of DestinationSvmName.
+func (s *OpsReplicationV1) GetDestinationSvmName() OptString {
+	return s.DestinationSvmName
+}
+
+// GetDestinationLocation returns the value of DestinationLocation.
+func (s *OpsReplicationV1) GetDestinationLocation() OptString {
+	return s.DestinationLocation
+}
+
+// GetExternalUuid returns the value of ExternalUuid.
+func (s *OpsReplicationV1) GetExternalUuid() OptString {
+	return s.ExternalUuid
+}
+
+// GetIsHybrid returns the value of IsHybrid.
+func (s *OpsReplicationV1) GetIsHybrid() OptBool {
+	return s.IsHybrid
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsReplicationV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsReplicationV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsReplicationV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsReplicationV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsReplicationV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsReplicationV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsReplicationV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsReplicationV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsReplicationV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsReplicationV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsReplicationV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsReplicationV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetVolumeUuid sets the value of VolumeUuid.
+func (s *OpsReplicationV1) SetVolumeUuid(val OptString) {
+	s.VolumeUuid = val
+}
+
+// SetVolumeName sets the value of VolumeName.
+func (s *OpsReplicationV1) SetVolumeName(val OptString) {
+	s.VolumeName = val
+}
+
+// SetMirrorState sets the value of MirrorState.
+func (s *OpsReplicationV1) SetMirrorState(val OptString) {
+	s.MirrorState = val
+}
+
+// SetRelationshipStatus sets the value of RelationshipStatus.
+func (s *OpsReplicationV1) SetRelationshipStatus(val OptString) {
+	s.RelationshipStatus = val
+}
+
+// SetHealthy sets the value of Healthy.
+func (s *OpsReplicationV1) SetHealthy(val OptBool) {
+	s.Healthy = val
+}
+
+// SetUnhealthyReasonPresent sets the value of UnhealthyReasonPresent.
+func (s *OpsReplicationV1) SetUnhealthyReasonPresent(val OptBool) {
+	s.UnhealthyReasonPresent = val
+}
+
+// SetLastTransferErrorPresent sets the value of LastTransferErrorPresent.
+func (s *OpsReplicationV1) SetLastTransferErrorPresent(val OptBool) {
+	s.LastTransferErrorPresent = val
+}
+
+// SetLagTime sets the value of LagTime.
+func (s *OpsReplicationV1) SetLagTime(val OptInt64) {
+	s.LagTime = val
+}
+
+// SetTotalProgress sets the value of TotalProgress.
+func (s *OpsReplicationV1) SetTotalProgress(val OptInt64) {
+	s.TotalProgress = val
+}
+
+// SetTotalTransferBytes sets the value of TotalTransferBytes.
+func (s *OpsReplicationV1) SetTotalTransferBytes(val OptInt64) {
+	s.TotalTransferBytes = val
+}
+
+// SetTotalTransferTimeSecs sets the value of TotalTransferTimeSecs.
+func (s *OpsReplicationV1) SetTotalTransferTimeSecs(val OptInt64) {
+	s.TotalTransferTimeSecs = val
+}
+
+// SetLastTransferSize sets the value of LastTransferSize.
+func (s *OpsReplicationV1) SetLastTransferSize(val OptInt64) {
+	s.LastTransferSize = val
+}
+
+// SetLastTransferDuration sets the value of LastTransferDuration.
+func (s *OpsReplicationV1) SetLastTransferDuration(val OptInt64) {
+	s.LastTransferDuration = val
+}
+
+// SetLastTransferEndTime sets the value of LastTransferEndTime.
+func (s *OpsReplicationV1) SetLastTransferEndTime(val OptDateTime) {
+	s.LastTransferEndTime = val
+}
+
+// SetProgressLastUpdated sets the value of ProgressLastUpdated.
+func (s *OpsReplicationV1) SetProgressLastUpdated(val OptDateTime) {
+	s.ProgressLastUpdated = val
+}
+
+// SetLastUpdatedFromOntap sets the value of LastUpdatedFromOntap.
+func (s *OpsReplicationV1) SetLastUpdatedFromOntap(val OptDateTime) {
+	s.LastUpdatedFromOntap = val
+}
+
+// SetEndpointType sets the value of EndpointType.
+func (s *OpsReplicationV1) SetEndpointType(val OptString) {
+	s.EndpointType = val
+}
+
+// SetReplicationType sets the value of ReplicationType.
+func (s *OpsReplicationV1) SetReplicationType(val OptString) {
+	s.ReplicationType = val
+}
+
+// SetReplicationSchedule sets the value of ReplicationSchedule.
+func (s *OpsReplicationV1) SetReplicationSchedule(val OptString) {
+	s.ReplicationSchedule = val
+}
+
+// SetSourcePoolUuid sets the value of SourcePoolUuid.
+func (s *OpsReplicationV1) SetSourcePoolUuid(val OptString) {
+	s.SourcePoolUuid = val
+}
+
+// SetSourceVolumeUuid sets the value of SourceVolumeUuid.
+func (s *OpsReplicationV1) SetSourceVolumeUuid(val OptString) {
+	s.SourceVolumeUuid = val
+}
+
+// SetSourceVolumeName sets the value of SourceVolumeName.
+func (s *OpsReplicationV1) SetSourceVolumeName(val OptString) {
+	s.SourceVolumeName = val
+}
+
+// SetSourceSvmName sets the value of SourceSvmName.
+func (s *OpsReplicationV1) SetSourceSvmName(val OptString) {
+	s.SourceSvmName = val
+}
+
+// SetSourceLocation sets the value of SourceLocation.
+func (s *OpsReplicationV1) SetSourceLocation(val OptString) {
+	s.SourceLocation = val
+}
+
+// SetDestinationPoolUuid sets the value of DestinationPoolUuid.
+func (s *OpsReplicationV1) SetDestinationPoolUuid(val OptString) {
+	s.DestinationPoolUuid = val
+}
+
+// SetDestinationVolumeUuid sets the value of DestinationVolumeUuid.
+func (s *OpsReplicationV1) SetDestinationVolumeUuid(val OptString) {
+	s.DestinationVolumeUuid = val
+}
+
+// SetDestinationVolumeName sets the value of DestinationVolumeName.
+func (s *OpsReplicationV1) SetDestinationVolumeName(val OptString) {
+	s.DestinationVolumeName = val
+}
+
+// SetDestinationSvmName sets the value of DestinationSvmName.
+func (s *OpsReplicationV1) SetDestinationSvmName(val OptString) {
+	s.DestinationSvmName = val
+}
+
+// SetDestinationLocation sets the value of DestinationLocation.
+func (s *OpsReplicationV1) SetDestinationLocation(val OptString) {
+	s.DestinationLocation = val
+}
+
+// SetExternalUuid sets the value of ExternalUuid.
+func (s *OpsReplicationV1) SetExternalUuid(val OptString) {
+	s.ExternalUuid = val
+}
+
+// SetIsHybrid sets the value of IsHybrid.
+func (s *OpsReplicationV1) SetIsHybrid(val OptBool) {
+	s.IsHybrid = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsReplicationV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsReplicationV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsReplicationV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Resource types readable by the ops inventory API.
+// Ref: #/components/schemas/OpsResourceType_v1
+type OpsResourceTypeV1 string
+
+const (
+	OpsResourceTypeV1Pool            OpsResourceTypeV1 = "pool"
+	OpsResourceTypeV1Volume          OpsResourceTypeV1 = "volume"
+	OpsResourceTypeV1Snapshot        OpsResourceTypeV1 = "snapshot"
+	OpsResourceTypeV1Replication     OpsResourceTypeV1 = "replication"
+	OpsResourceTypeV1Backup          OpsResourceTypeV1 = "backup"
+	OpsResourceTypeV1BackupVault     OpsResourceTypeV1 = "backupVault"
+	OpsResourceTypeV1BackupPolicy    OpsResourceTypeV1 = "backupPolicy"
+	OpsResourceTypeV1Cmek            OpsResourceTypeV1 = "cmek"
+	OpsResourceTypeV1ActiveDirectory OpsResourceTypeV1 = "activeDirectory"
+	OpsResourceTypeV1Job             OpsResourceTypeV1 = "job"
+)
+
+// AllValues returns all OpsResourceTypeV1 values.
+func (OpsResourceTypeV1) AllValues() []OpsResourceTypeV1 {
+	return []OpsResourceTypeV1{
+		OpsResourceTypeV1Pool,
+		OpsResourceTypeV1Volume,
+		OpsResourceTypeV1Snapshot,
+		OpsResourceTypeV1Replication,
+		OpsResourceTypeV1Backup,
+		OpsResourceTypeV1BackupVault,
+		OpsResourceTypeV1BackupPolicy,
+		OpsResourceTypeV1Cmek,
+		OpsResourceTypeV1ActiveDirectory,
+		OpsResourceTypeV1Job,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OpsResourceTypeV1) MarshalText() ([]byte, error) {
+	switch s {
+	case OpsResourceTypeV1Pool:
+		return []byte(s), nil
+	case OpsResourceTypeV1Volume:
+		return []byte(s), nil
+	case OpsResourceTypeV1Snapshot:
+		return []byte(s), nil
+	case OpsResourceTypeV1Replication:
+		return []byte(s), nil
+	case OpsResourceTypeV1Backup:
+		return []byte(s), nil
+	case OpsResourceTypeV1BackupVault:
+		return []byte(s), nil
+	case OpsResourceTypeV1BackupPolicy:
+		return []byte(s), nil
+	case OpsResourceTypeV1Cmek:
+		return []byte(s), nil
+	case OpsResourceTypeV1ActiveDirectory:
+		return []byte(s), nil
+	case OpsResourceTypeV1Job:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OpsResourceTypeV1) UnmarshalText(data []byte) error {
+	switch OpsResourceTypeV1(data) {
+	case OpsResourceTypeV1Pool:
+		*s = OpsResourceTypeV1Pool
+		return nil
+	case OpsResourceTypeV1Volume:
+		*s = OpsResourceTypeV1Volume
+		return nil
+	case OpsResourceTypeV1Snapshot:
+		*s = OpsResourceTypeV1Snapshot
+		return nil
+	case OpsResourceTypeV1Replication:
+		*s = OpsResourceTypeV1Replication
+		return nil
+	case OpsResourceTypeV1Backup:
+		*s = OpsResourceTypeV1Backup
+		return nil
+	case OpsResourceTypeV1BackupVault:
+		*s = OpsResourceTypeV1BackupVault
+		return nil
+	case OpsResourceTypeV1BackupPolicy:
+		*s = OpsResourceTypeV1BackupPolicy
+		return nil
+	case OpsResourceTypeV1Cmek:
+		*s = OpsResourceTypeV1Cmek
+		return nil
+	case OpsResourceTypeV1ActiveDirectory:
+		*s = OpsResourceTypeV1ActiveDirectory
+		return nil
+	case OpsResourceTypeV1Job:
+		*s = OpsResourceTypeV1Job
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/OpsResource_v1
+// OpsResourceV1 represents sum type.
+type OpsResourceV1 struct {
+	Type                 OpsResourceV1Type // switch on this field
+	OpsPoolV1            OpsPoolV1
+	OpsVolumeV1          OpsVolumeV1
+	OpsSnapshotV1        OpsSnapshotV1
+	OpsReplicationV1     OpsReplicationV1
+	OpsBackupV1          OpsBackupV1
+	OpsBackupVaultV1     OpsBackupVaultV1
+	OpsBackupPolicyV1    OpsBackupPolicyV1
+	OpsCmekV1            OpsCmekV1
+	OpsActiveDirectoryV1 OpsActiveDirectoryV1
+	OpsJobV1             OpsJobV1
+}
+
+// OpsResourceV1Type is oneOf type of OpsResourceV1.
+type OpsResourceV1Type string
+
+// Possible values for OpsResourceV1Type.
+const (
+	OpsPoolV1OpsResourceV1            OpsResourceV1Type = "pool"
+	OpsVolumeV1OpsResourceV1          OpsResourceV1Type = "volume"
+	OpsSnapshotV1OpsResourceV1        OpsResourceV1Type = "snapshot"
+	OpsReplicationV1OpsResourceV1     OpsResourceV1Type = "replication"
+	OpsBackupV1OpsResourceV1          OpsResourceV1Type = "backup"
+	OpsBackupVaultV1OpsResourceV1     OpsResourceV1Type = "backupVault"
+	OpsBackupPolicyV1OpsResourceV1    OpsResourceV1Type = "backupPolicy"
+	OpsCmekV1OpsResourceV1            OpsResourceV1Type = "cmek"
+	OpsActiveDirectoryV1OpsResourceV1 OpsResourceV1Type = "activeDirectory"
+	OpsJobV1OpsResourceV1             OpsResourceV1Type = "job"
+)
+
+// IsOpsPoolV1 reports whether OpsResourceV1 is OpsPoolV1.
+func (s OpsResourceV1) IsOpsPoolV1() bool { return s.Type == OpsPoolV1OpsResourceV1 }
+
+// IsOpsVolumeV1 reports whether OpsResourceV1 is OpsVolumeV1.
+func (s OpsResourceV1) IsOpsVolumeV1() bool { return s.Type == OpsVolumeV1OpsResourceV1 }
+
+// IsOpsSnapshotV1 reports whether OpsResourceV1 is OpsSnapshotV1.
+func (s OpsResourceV1) IsOpsSnapshotV1() bool { return s.Type == OpsSnapshotV1OpsResourceV1 }
+
+// IsOpsReplicationV1 reports whether OpsResourceV1 is OpsReplicationV1.
+func (s OpsResourceV1) IsOpsReplicationV1() bool { return s.Type == OpsReplicationV1OpsResourceV1 }
+
+// IsOpsBackupV1 reports whether OpsResourceV1 is OpsBackupV1.
+func (s OpsResourceV1) IsOpsBackupV1() bool { return s.Type == OpsBackupV1OpsResourceV1 }
+
+// IsOpsBackupVaultV1 reports whether OpsResourceV1 is OpsBackupVaultV1.
+func (s OpsResourceV1) IsOpsBackupVaultV1() bool { return s.Type == OpsBackupVaultV1OpsResourceV1 }
+
+// IsOpsBackupPolicyV1 reports whether OpsResourceV1 is OpsBackupPolicyV1.
+func (s OpsResourceV1) IsOpsBackupPolicyV1() bool { return s.Type == OpsBackupPolicyV1OpsResourceV1 }
+
+// IsOpsCmekV1 reports whether OpsResourceV1 is OpsCmekV1.
+func (s OpsResourceV1) IsOpsCmekV1() bool { return s.Type == OpsCmekV1OpsResourceV1 }
+
+// IsOpsActiveDirectoryV1 reports whether OpsResourceV1 is OpsActiveDirectoryV1.
+func (s OpsResourceV1) IsOpsActiveDirectoryV1() bool {
+	return s.Type == OpsActiveDirectoryV1OpsResourceV1
+}
+
+// IsOpsJobV1 reports whether OpsResourceV1 is OpsJobV1.
+func (s OpsResourceV1) IsOpsJobV1() bool { return s.Type == OpsJobV1OpsResourceV1 }
+
+// SetOpsPoolV1 sets OpsResourceV1 to OpsPoolV1.
+func (s *OpsResourceV1) SetOpsPoolV1(v OpsPoolV1) {
+	s.Type = OpsPoolV1OpsResourceV1
+	s.OpsPoolV1 = v
+}
+
+// GetOpsPoolV1 returns OpsPoolV1 and true boolean if OpsResourceV1 is OpsPoolV1.
+func (s OpsResourceV1) GetOpsPoolV1() (v OpsPoolV1, ok bool) {
+	if !s.IsOpsPoolV1() {
+		return v, false
+	}
+	return s.OpsPoolV1, true
+}
+
+// NewOpsPoolV1OpsResourceV1 returns new OpsResourceV1 from OpsPoolV1.
+func NewOpsPoolV1OpsResourceV1(v OpsPoolV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsPoolV1(v)
+	return s
+}
+
+// SetOpsVolumeV1 sets OpsResourceV1 to OpsVolumeV1.
+func (s *OpsResourceV1) SetOpsVolumeV1(v OpsVolumeV1) {
+	s.Type = OpsVolumeV1OpsResourceV1
+	s.OpsVolumeV1 = v
+}
+
+// GetOpsVolumeV1 returns OpsVolumeV1 and true boolean if OpsResourceV1 is OpsVolumeV1.
+func (s OpsResourceV1) GetOpsVolumeV1() (v OpsVolumeV1, ok bool) {
+	if !s.IsOpsVolumeV1() {
+		return v, false
+	}
+	return s.OpsVolumeV1, true
+}
+
+// NewOpsVolumeV1OpsResourceV1 returns new OpsResourceV1 from OpsVolumeV1.
+func NewOpsVolumeV1OpsResourceV1(v OpsVolumeV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsVolumeV1(v)
+	return s
+}
+
+// SetOpsSnapshotV1 sets OpsResourceV1 to OpsSnapshotV1.
+func (s *OpsResourceV1) SetOpsSnapshotV1(v OpsSnapshotV1) {
+	s.Type = OpsSnapshotV1OpsResourceV1
+	s.OpsSnapshotV1 = v
+}
+
+// GetOpsSnapshotV1 returns OpsSnapshotV1 and true boolean if OpsResourceV1 is OpsSnapshotV1.
+func (s OpsResourceV1) GetOpsSnapshotV1() (v OpsSnapshotV1, ok bool) {
+	if !s.IsOpsSnapshotV1() {
+		return v, false
+	}
+	return s.OpsSnapshotV1, true
+}
+
+// NewOpsSnapshotV1OpsResourceV1 returns new OpsResourceV1 from OpsSnapshotV1.
+func NewOpsSnapshotV1OpsResourceV1(v OpsSnapshotV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsSnapshotV1(v)
+	return s
+}
+
+// SetOpsReplicationV1 sets OpsResourceV1 to OpsReplicationV1.
+func (s *OpsResourceV1) SetOpsReplicationV1(v OpsReplicationV1) {
+	s.Type = OpsReplicationV1OpsResourceV1
+	s.OpsReplicationV1 = v
+}
+
+// GetOpsReplicationV1 returns OpsReplicationV1 and true boolean if OpsResourceV1 is OpsReplicationV1.
+func (s OpsResourceV1) GetOpsReplicationV1() (v OpsReplicationV1, ok bool) {
+	if !s.IsOpsReplicationV1() {
+		return v, false
+	}
+	return s.OpsReplicationV1, true
+}
+
+// NewOpsReplicationV1OpsResourceV1 returns new OpsResourceV1 from OpsReplicationV1.
+func NewOpsReplicationV1OpsResourceV1(v OpsReplicationV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsReplicationV1(v)
+	return s
+}
+
+// SetOpsBackupV1 sets OpsResourceV1 to OpsBackupV1.
+func (s *OpsResourceV1) SetOpsBackupV1(v OpsBackupV1) {
+	s.Type = OpsBackupV1OpsResourceV1
+	s.OpsBackupV1 = v
+}
+
+// GetOpsBackupV1 returns OpsBackupV1 and true boolean if OpsResourceV1 is OpsBackupV1.
+func (s OpsResourceV1) GetOpsBackupV1() (v OpsBackupV1, ok bool) {
+	if !s.IsOpsBackupV1() {
+		return v, false
+	}
+	return s.OpsBackupV1, true
+}
+
+// NewOpsBackupV1OpsResourceV1 returns new OpsResourceV1 from OpsBackupV1.
+func NewOpsBackupV1OpsResourceV1(v OpsBackupV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsBackupV1(v)
+	return s
+}
+
+// SetOpsBackupVaultV1 sets OpsResourceV1 to OpsBackupVaultV1.
+func (s *OpsResourceV1) SetOpsBackupVaultV1(v OpsBackupVaultV1) {
+	s.Type = OpsBackupVaultV1OpsResourceV1
+	s.OpsBackupVaultV1 = v
+}
+
+// GetOpsBackupVaultV1 returns OpsBackupVaultV1 and true boolean if OpsResourceV1 is OpsBackupVaultV1.
+func (s OpsResourceV1) GetOpsBackupVaultV1() (v OpsBackupVaultV1, ok bool) {
+	if !s.IsOpsBackupVaultV1() {
+		return v, false
+	}
+	return s.OpsBackupVaultV1, true
+}
+
+// NewOpsBackupVaultV1OpsResourceV1 returns new OpsResourceV1 from OpsBackupVaultV1.
+func NewOpsBackupVaultV1OpsResourceV1(v OpsBackupVaultV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsBackupVaultV1(v)
+	return s
+}
+
+// SetOpsBackupPolicyV1 sets OpsResourceV1 to OpsBackupPolicyV1.
+func (s *OpsResourceV1) SetOpsBackupPolicyV1(v OpsBackupPolicyV1) {
+	s.Type = OpsBackupPolicyV1OpsResourceV1
+	s.OpsBackupPolicyV1 = v
+}
+
+// GetOpsBackupPolicyV1 returns OpsBackupPolicyV1 and true boolean if OpsResourceV1 is OpsBackupPolicyV1.
+func (s OpsResourceV1) GetOpsBackupPolicyV1() (v OpsBackupPolicyV1, ok bool) {
+	if !s.IsOpsBackupPolicyV1() {
+		return v, false
+	}
+	return s.OpsBackupPolicyV1, true
+}
+
+// NewOpsBackupPolicyV1OpsResourceV1 returns new OpsResourceV1 from OpsBackupPolicyV1.
+func NewOpsBackupPolicyV1OpsResourceV1(v OpsBackupPolicyV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsBackupPolicyV1(v)
+	return s
+}
+
+// SetOpsCmekV1 sets OpsResourceV1 to OpsCmekV1.
+func (s *OpsResourceV1) SetOpsCmekV1(v OpsCmekV1) {
+	s.Type = OpsCmekV1OpsResourceV1
+	s.OpsCmekV1 = v
+}
+
+// GetOpsCmekV1 returns OpsCmekV1 and true boolean if OpsResourceV1 is OpsCmekV1.
+func (s OpsResourceV1) GetOpsCmekV1() (v OpsCmekV1, ok bool) {
+	if !s.IsOpsCmekV1() {
+		return v, false
+	}
+	return s.OpsCmekV1, true
+}
+
+// NewOpsCmekV1OpsResourceV1 returns new OpsResourceV1 from OpsCmekV1.
+func NewOpsCmekV1OpsResourceV1(v OpsCmekV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsCmekV1(v)
+	return s
+}
+
+// SetOpsActiveDirectoryV1 sets OpsResourceV1 to OpsActiveDirectoryV1.
+func (s *OpsResourceV1) SetOpsActiveDirectoryV1(v OpsActiveDirectoryV1) {
+	s.Type = OpsActiveDirectoryV1OpsResourceV1
+	s.OpsActiveDirectoryV1 = v
+}
+
+// GetOpsActiveDirectoryV1 returns OpsActiveDirectoryV1 and true boolean if OpsResourceV1 is OpsActiveDirectoryV1.
+func (s OpsResourceV1) GetOpsActiveDirectoryV1() (v OpsActiveDirectoryV1, ok bool) {
+	if !s.IsOpsActiveDirectoryV1() {
+		return v, false
+	}
+	return s.OpsActiveDirectoryV1, true
+}
+
+// NewOpsActiveDirectoryV1OpsResourceV1 returns new OpsResourceV1 from OpsActiveDirectoryV1.
+func NewOpsActiveDirectoryV1OpsResourceV1(v OpsActiveDirectoryV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsActiveDirectoryV1(v)
+	return s
+}
+
+// SetOpsJobV1 sets OpsResourceV1 to OpsJobV1.
+func (s *OpsResourceV1) SetOpsJobV1(v OpsJobV1) {
+	s.Type = OpsJobV1OpsResourceV1
+	s.OpsJobV1 = v
+}
+
+// GetOpsJobV1 returns OpsJobV1 and true boolean if OpsResourceV1 is OpsJobV1.
+func (s OpsResourceV1) GetOpsJobV1() (v OpsJobV1, ok bool) {
+	if !s.IsOpsJobV1() {
+		return v, false
+	}
+	return s.OpsJobV1, true
+}
+
+// NewOpsJobV1OpsResourceV1 returns new OpsResourceV1 from OpsJobV1.
+func NewOpsJobV1OpsResourceV1(v OpsJobV1) OpsResourceV1 {
+	var s OpsResourceV1
+	s.SetOpsJobV1(v)
+	return s
+}
+
+func (*OpsResourceV1) v1GetInternalResourceRes() {}
+
+// Key rotation state from service_account_attributes.keys. primaryKeyCreatedAt is when the current
+// key was created, which is when the last rotation started; the time the key became primary is not
+// stored. keys is empty until the first rotation. A key added as the old key during the first
+// rotation carries the service account creation time.
+// Ref: #/components/schemas/OpsServiceAccountKeyRotation_v1
+type OpsServiceAccountKeyRotationV1 struct {
+	PrimaryKeyId        OptString   `json:"primaryKeyId"`
+	PrimaryKeyCreatedAt OptDateTime `json:"primaryKeyCreatedAt"`
+	// True when an active key exists that is not primary yet.
+	RotationInProgress bool `json:"rotationInProgress"`
+	// Old keys marked for deletion but not yet deleted from GCP.
+	KeysPendingDeletion int32                    `json:"keysPendingDeletion"`
+	Keys                []OpsServiceAccountKeyV1 `json:"keys"`
+}
+
+// GetPrimaryKeyId returns the value of PrimaryKeyId.
+func (s *OpsServiceAccountKeyRotationV1) GetPrimaryKeyId() OptString {
+	return s.PrimaryKeyId
+}
+
+// GetPrimaryKeyCreatedAt returns the value of PrimaryKeyCreatedAt.
+func (s *OpsServiceAccountKeyRotationV1) GetPrimaryKeyCreatedAt() OptDateTime {
+	return s.PrimaryKeyCreatedAt
+}
+
+// GetRotationInProgress returns the value of RotationInProgress.
+func (s *OpsServiceAccountKeyRotationV1) GetRotationInProgress() bool {
+	return s.RotationInProgress
+}
+
+// GetKeysPendingDeletion returns the value of KeysPendingDeletion.
+func (s *OpsServiceAccountKeyRotationV1) GetKeysPendingDeletion() int32 {
+	return s.KeysPendingDeletion
+}
+
+// GetKeys returns the value of Keys.
+func (s *OpsServiceAccountKeyRotationV1) GetKeys() []OpsServiceAccountKeyV1 {
+	return s.Keys
+}
+
+// SetPrimaryKeyId sets the value of PrimaryKeyId.
+func (s *OpsServiceAccountKeyRotationV1) SetPrimaryKeyId(val OptString) {
+	s.PrimaryKeyId = val
+}
+
+// SetPrimaryKeyCreatedAt sets the value of PrimaryKeyCreatedAt.
+func (s *OpsServiceAccountKeyRotationV1) SetPrimaryKeyCreatedAt(val OptDateTime) {
+	s.PrimaryKeyCreatedAt = val
+}
+
+// SetRotationInProgress sets the value of RotationInProgress.
+func (s *OpsServiceAccountKeyRotationV1) SetRotationInProgress(val bool) {
+	s.RotationInProgress = val
+}
+
+// SetKeysPendingDeletion sets the value of KeysPendingDeletion.
+func (s *OpsServiceAccountKeyRotationV1) SetKeysPendingDeletion(val int32) {
+	s.KeysPendingDeletion = val
+}
+
+// SetKeys sets the value of Keys.
+func (s *OpsServiceAccountKeyRotationV1) SetKeys(val []OpsServiceAccountKeyV1) {
+	s.Keys = val
+}
+
+// One service account key. The key ID is the GCP key ID, not key material.
+// Ref: #/components/schemas/OpsServiceAccountKey_v1
+type OpsServiceAccountKeyV1 struct {
+	KeyId     string      `json:"keyId"`
+	IsPrimary bool        `json:"isPrimary"`
+	IsActive  bool        `json:"isActive"`
+	CreatedAt OptDateTime `json:"createdAt"`
+}
+
+// GetKeyId returns the value of KeyId.
+func (s *OpsServiceAccountKeyV1) GetKeyId() string {
+	return s.KeyId
+}
+
+// GetIsPrimary returns the value of IsPrimary.
+func (s *OpsServiceAccountKeyV1) GetIsPrimary() bool {
+	return s.IsPrimary
+}
+
+// GetIsActive returns the value of IsActive.
+func (s *OpsServiceAccountKeyV1) GetIsActive() bool {
+	return s.IsActive
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsServiceAccountKeyV1) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// SetKeyId sets the value of KeyId.
+func (s *OpsServiceAccountKeyV1) SetKeyId(val string) {
+	s.KeyId = val
+}
+
+// SetIsPrimary sets the value of IsPrimary.
+func (s *OpsServiceAccountKeyV1) SetIsPrimary(val bool) {
+	s.IsPrimary = val
+}
+
+// SetIsActive sets the value of IsActive.
+func (s *OpsServiceAccountKeyV1) SetIsActive(val bool) {
+	s.IsActive = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsServiceAccountKeyV1) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// Ref: #/components/schemas/OpsSnapshot_v1
+type OpsSnapshotV1 struct {
+	ResourceType           string      `json:"resourceType"`
+	Source                 OpsSourceV1 `json:"source"`
+	UUID                   string      `json:"uuid"`
+	Name                   OptString   `json:"name"`
+	Description            OptString   `json:"description"`
+	State                  OptString   `json:"state"`
+	StateDetails           OptString   `json:"stateDetails"`
+	StateDetailsWithheld   OptBool     `json:"stateDetailsWithheld"`
+	ProjectNumber          OptString   `json:"projectNumber"`
+	VolumeUuid             OptString   `json:"volumeUuid"`
+	VolumeName             OptString   `json:"volumeName"`
+	Type                   OptString   `json:"type"`
+	IsAppConsistent        OptBool     `json:"isAppConsistent"`
+	ExternalUuid           OptString   `json:"externalUuid"`
+	SizeInBytes            OptInt64    `json:"sizeInBytes"`
+	LogicalSizeUsedInBytes OptInt64    `json:"logicalSizeUsedInBytes"`
+	CreatedAt              time.Time   `json:"createdAt"`
+	UpdatedAt              time.Time   `json:"updatedAt"`
+	DeletedAt              NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsSnapshotV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsSnapshotV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsSnapshotV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsSnapshotV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsSnapshotV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsSnapshotV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsSnapshotV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsSnapshotV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsSnapshotV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetVolumeUuid returns the value of VolumeUuid.
+func (s *OpsSnapshotV1) GetVolumeUuid() OptString {
+	return s.VolumeUuid
+}
+
+// GetVolumeName returns the value of VolumeName.
+func (s *OpsSnapshotV1) GetVolumeName() OptString {
+	return s.VolumeName
+}
+
+// GetType returns the value of Type.
+func (s *OpsSnapshotV1) GetType() OptString {
+	return s.Type
+}
+
+// GetIsAppConsistent returns the value of IsAppConsistent.
+func (s *OpsSnapshotV1) GetIsAppConsistent() OptBool {
+	return s.IsAppConsistent
+}
+
+// GetExternalUuid returns the value of ExternalUuid.
+func (s *OpsSnapshotV1) GetExternalUuid() OptString {
+	return s.ExternalUuid
+}
+
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *OpsSnapshotV1) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
+}
+
+// GetLogicalSizeUsedInBytes returns the value of LogicalSizeUsedInBytes.
+func (s *OpsSnapshotV1) GetLogicalSizeUsedInBytes() OptInt64 {
+	return s.LogicalSizeUsedInBytes
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsSnapshotV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsSnapshotV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsSnapshotV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsSnapshotV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsSnapshotV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsSnapshotV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsSnapshotV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsSnapshotV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsSnapshotV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsSnapshotV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsSnapshotV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsSnapshotV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetVolumeUuid sets the value of VolumeUuid.
+func (s *OpsSnapshotV1) SetVolumeUuid(val OptString) {
+	s.VolumeUuid = val
+}
+
+// SetVolumeName sets the value of VolumeName.
+func (s *OpsSnapshotV1) SetVolumeName(val OptString) {
+	s.VolumeName = val
+}
+
+// SetType sets the value of Type.
+func (s *OpsSnapshotV1) SetType(val OptString) {
+	s.Type = val
+}
+
+// SetIsAppConsistent sets the value of IsAppConsistent.
+func (s *OpsSnapshotV1) SetIsAppConsistent(val OptBool) {
+	s.IsAppConsistent = val
+}
+
+// SetExternalUuid sets the value of ExternalUuid.
+func (s *OpsSnapshotV1) SetExternalUuid(val OptString) {
+	s.ExternalUuid = val
+}
+
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *OpsSnapshotV1) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
+}
+
+// SetLogicalSizeUsedInBytes sets the value of LogicalSizeUsedInBytes.
+func (s *OpsSnapshotV1) SetLogicalSizeUsedInBytes(val OptInt64) {
+	s.LogicalSizeUsedInBytes = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsSnapshotV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsSnapshotV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsSnapshotV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
+
+// Ref: #/components/schemas/OpsSource_v1
+type OpsSourceV1 string
+
+const (
+	OpsSourceV1VcpDb            OpsSourceV1 = "vcp_db"
+	OpsSourceV1VcpDbAndTemporal OpsSourceV1 = "vcp_db_and_temporal"
+)
+
+// AllValues returns all OpsSourceV1 values.
+func (OpsSourceV1) AllValues() []OpsSourceV1 {
+	return []OpsSourceV1{
+		OpsSourceV1VcpDb,
+		OpsSourceV1VcpDbAndTemporal,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OpsSourceV1) MarshalText() ([]byte, error) {
+	switch s {
+	case OpsSourceV1VcpDb:
+		return []byte(s), nil
+	case OpsSourceV1VcpDbAndTemporal:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OpsSourceV1) UnmarshalText(data []byte) error {
+	switch OpsSourceV1(data) {
+	case OpsSourceV1VcpDb:
+		*s = OpsSourceV1VcpDb
+		return nil
+	case OpsSourceV1VcpDbAndTemporal:
+		*s = OpsSourceV1VcpDbAndTemporal
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Half-open range [from, to). At least one bound.
+// Ref: #/components/schemas/OpsTimeFilter_v1
+type OpsTimeFilterV1 struct {
+	Field OpsTimeFilterV1Field `json:"field"`
+	From  OptDateTime          `json:"from"`
+	To    OptDateTime          `json:"to"`
+}
+
+// GetField returns the value of Field.
+func (s *OpsTimeFilterV1) GetField() OpsTimeFilterV1Field {
+	return s.Field
+}
+
+// GetFrom returns the value of From.
+func (s *OpsTimeFilterV1) GetFrom() OptDateTime {
+	return s.From
+}
+
+// GetTo returns the value of To.
+func (s *OpsTimeFilterV1) GetTo() OptDateTime {
+	return s.To
+}
+
+// SetField sets the value of Field.
+func (s *OpsTimeFilterV1) SetField(val OpsTimeFilterV1Field) {
+	s.Field = val
+}
+
+// SetFrom sets the value of From.
+func (s *OpsTimeFilterV1) SetFrom(val OptDateTime) {
+	s.From = val
+}
+
+// SetTo sets the value of To.
+func (s *OpsTimeFilterV1) SetTo(val OptDateTime) {
+	s.To = val
+}
+
+type OpsTimeFilterV1Field string
+
+const (
+	OpsTimeFilterV1FieldCreatedAt OpsTimeFilterV1Field = "createdAt"
+	OpsTimeFilterV1FieldUpdatedAt OpsTimeFilterV1Field = "updatedAt"
+)
+
+// AllValues returns all OpsTimeFilterV1Field values.
+func (OpsTimeFilterV1Field) AllValues() []OpsTimeFilterV1Field {
+	return []OpsTimeFilterV1Field{
+		OpsTimeFilterV1FieldCreatedAt,
+		OpsTimeFilterV1FieldUpdatedAt,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s OpsTimeFilterV1Field) MarshalText() ([]byte, error) {
+	switch s {
+	case OpsTimeFilterV1FieldCreatedAt:
+		return []byte(s), nil
+	case OpsTimeFilterV1FieldUpdatedAt:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *OpsTimeFilterV1Field) UnmarshalText(data []byte) error {
+	switch OpsTimeFilterV1Field(data) {
+	case OpsTimeFilterV1FieldCreatedAt:
+		*s = OpsTimeFilterV1FieldCreatedAt
+		return nil
+	case OpsTimeFilterV1FieldUpdatedAt:
+		*s = OpsTimeFilterV1FieldUpdatedAt
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Reviewed allowlist of persisted volumes row fields. No KMS grant or association objects.
+// Ref: #/components/schemas/OpsVolume_v1
+type OpsVolumeV1 struct {
+	ResourceType               string      `json:"resourceType"`
+	Source                     OpsSourceV1 `json:"source"`
+	UUID                       string      `json:"uuid"`
+	Name                       OptString   `json:"name"`
+	Description                OptString   `json:"description"`
+	State                      OptString   `json:"state"`
+	StateDetails               OptString   `json:"stateDetails"`
+	StateDetailsWithheld       OptBool     `json:"stateDetailsWithheld"`
+	Health                     OptString   `json:"health"`
+	ProjectNumber              OptString   `json:"projectNumber"`
+	PoolUuid                   OptString   `json:"poolUuid"`
+	PoolName                   OptString   `json:"poolName"`
+	SvmUuid                    OptString   `json:"svmUuid"`
+	SvmName                    OptString   `json:"svmName"`
+	VolumePerformanceGroupUuid OptString   `json:"volumePerformanceGroupUuid"`
+	SizeInBytes                OptInt64    `json:"sizeInBytes"`
+	UsedBytes                  OptInt64    `json:"usedBytes"`
+	Throughput                 OptInt64    `json:"throughput"`
+	MountPath                  OptString   `json:"mountPath"`
+	CreationToken              OptString   `json:"creationToken"`
+	Protocols                  []string    `json:"protocols"`
+	SecurityStyle              OptString   `json:"securityStyle"`
+	IsDataProtection           OptBool     `json:"isDataProtection"`
+	IsRegionalHa               OptBool     `json:"isRegionalHa"`
+	// Primary zone of the volume pool (pool_attributes.primary_zone).
+	Zone OptString `json:"zone"`
+	// Secondary zone of the pool; only for regional HA pools.
+	SecondaryZone          OptString   `json:"secondaryZone"`
+	SnapReserve            OptInt64    `json:"snapReserve"`
+	SnapshotDirectory      OptBool     `json:"snapshotDirectory"`
+	KerberosEnabled        OptBool     `json:"kerberosEnabled"`
+	LdapEnabled            OptBool     `json:"ldapEnabled"`
+	AutoTieringEnabled     OptBool     `json:"autoTieringEnabled"`
+	HotTierSizeGib         OptInt64    `json:"hotTierSizeGib"`
+	ColdTierSizeGib        OptInt64    `json:"coldTierSizeGib"`
+	ClonesSharedBytes      OptInt64    `json:"clonesSharedBytes"`
+	BackupVaultUuid        OptString   `json:"backupVaultUuid"`
+	BackupPolicyUuid       OptString   `json:"backupPolicyUuid"`
+	ScheduledBackupEnabled OptBool     `json:"scheduledBackupEnabled"`
+	RestrictedActions      []string    `json:"restrictedActions"`
+	ExternalUuid           OptString   `json:"externalUuid"`
+	CreatedAt              time.Time   `json:"createdAt"`
+	UpdatedAt              time.Time   `json:"updatedAt"`
+	DeletedAt              NilDateTime `json:"deletedAt"`
+}
+
+// GetResourceType returns the value of ResourceType.
+func (s *OpsVolumeV1) GetResourceType() string {
+	return s.ResourceType
+}
+
+// GetSource returns the value of Source.
+func (s *OpsVolumeV1) GetSource() OpsSourceV1 {
+	return s.Source
+}
+
+// GetUUID returns the value of UUID.
+func (s *OpsVolumeV1) GetUUID() string {
+	return s.UUID
+}
+
+// GetName returns the value of Name.
+func (s *OpsVolumeV1) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *OpsVolumeV1) GetDescription() OptString {
+	return s.Description
+}
+
+// GetState returns the value of State.
+func (s *OpsVolumeV1) GetState() OptString {
+	return s.State
+}
+
+// GetStateDetails returns the value of StateDetails.
+func (s *OpsVolumeV1) GetStateDetails() OptString {
+	return s.StateDetails
+}
+
+// GetStateDetailsWithheld returns the value of StateDetailsWithheld.
+func (s *OpsVolumeV1) GetStateDetailsWithheld() OptBool {
+	return s.StateDetailsWithheld
+}
+
+// GetHealth returns the value of Health.
+func (s *OpsVolumeV1) GetHealth() OptString {
+	return s.Health
+}
+
+// GetProjectNumber returns the value of ProjectNumber.
+func (s *OpsVolumeV1) GetProjectNumber() OptString {
+	return s.ProjectNumber
+}
+
+// GetPoolUuid returns the value of PoolUuid.
+func (s *OpsVolumeV1) GetPoolUuid() OptString {
+	return s.PoolUuid
+}
+
+// GetPoolName returns the value of PoolName.
+func (s *OpsVolumeV1) GetPoolName() OptString {
+	return s.PoolName
+}
+
+// GetSvmUuid returns the value of SvmUuid.
+func (s *OpsVolumeV1) GetSvmUuid() OptString {
+	return s.SvmUuid
+}
+
+// GetSvmName returns the value of SvmName.
+func (s *OpsVolumeV1) GetSvmName() OptString {
+	return s.SvmName
+}
+
+// GetVolumePerformanceGroupUuid returns the value of VolumePerformanceGroupUuid.
+func (s *OpsVolumeV1) GetVolumePerformanceGroupUuid() OptString {
+	return s.VolumePerformanceGroupUuid
+}
+
+// GetSizeInBytes returns the value of SizeInBytes.
+func (s *OpsVolumeV1) GetSizeInBytes() OptInt64 {
+	return s.SizeInBytes
+}
+
+// GetUsedBytes returns the value of UsedBytes.
+func (s *OpsVolumeV1) GetUsedBytes() OptInt64 {
+	return s.UsedBytes
+}
+
+// GetThroughput returns the value of Throughput.
+func (s *OpsVolumeV1) GetThroughput() OptInt64 {
+	return s.Throughput
+}
+
+// GetMountPath returns the value of MountPath.
+func (s *OpsVolumeV1) GetMountPath() OptString {
+	return s.MountPath
+}
+
+// GetCreationToken returns the value of CreationToken.
+func (s *OpsVolumeV1) GetCreationToken() OptString {
+	return s.CreationToken
+}
+
+// GetProtocols returns the value of Protocols.
+func (s *OpsVolumeV1) GetProtocols() []string {
+	return s.Protocols
+}
+
+// GetSecurityStyle returns the value of SecurityStyle.
+func (s *OpsVolumeV1) GetSecurityStyle() OptString {
+	return s.SecurityStyle
+}
+
+// GetIsDataProtection returns the value of IsDataProtection.
+func (s *OpsVolumeV1) GetIsDataProtection() OptBool {
+	return s.IsDataProtection
+}
+
+// GetIsRegionalHa returns the value of IsRegionalHa.
+func (s *OpsVolumeV1) GetIsRegionalHa() OptBool {
+	return s.IsRegionalHa
+}
+
+// GetZone returns the value of Zone.
+func (s *OpsVolumeV1) GetZone() OptString {
+	return s.Zone
+}
+
+// GetSecondaryZone returns the value of SecondaryZone.
+func (s *OpsVolumeV1) GetSecondaryZone() OptString {
+	return s.SecondaryZone
+}
+
+// GetSnapReserve returns the value of SnapReserve.
+func (s *OpsVolumeV1) GetSnapReserve() OptInt64 {
+	return s.SnapReserve
+}
+
+// GetSnapshotDirectory returns the value of SnapshotDirectory.
+func (s *OpsVolumeV1) GetSnapshotDirectory() OptBool {
+	return s.SnapshotDirectory
+}
+
+// GetKerberosEnabled returns the value of KerberosEnabled.
+func (s *OpsVolumeV1) GetKerberosEnabled() OptBool {
+	return s.KerberosEnabled
+}
+
+// GetLdapEnabled returns the value of LdapEnabled.
+func (s *OpsVolumeV1) GetLdapEnabled() OptBool {
+	return s.LdapEnabled
+}
+
+// GetAutoTieringEnabled returns the value of AutoTieringEnabled.
+func (s *OpsVolumeV1) GetAutoTieringEnabled() OptBool {
+	return s.AutoTieringEnabled
+}
+
+// GetHotTierSizeGib returns the value of HotTierSizeGib.
+func (s *OpsVolumeV1) GetHotTierSizeGib() OptInt64 {
+	return s.HotTierSizeGib
+}
+
+// GetColdTierSizeGib returns the value of ColdTierSizeGib.
+func (s *OpsVolumeV1) GetColdTierSizeGib() OptInt64 {
+	return s.ColdTierSizeGib
+}
+
+// GetClonesSharedBytes returns the value of ClonesSharedBytes.
+func (s *OpsVolumeV1) GetClonesSharedBytes() OptInt64 {
+	return s.ClonesSharedBytes
+}
+
+// GetBackupVaultUuid returns the value of BackupVaultUuid.
+func (s *OpsVolumeV1) GetBackupVaultUuid() OptString {
+	return s.BackupVaultUuid
+}
+
+// GetBackupPolicyUuid returns the value of BackupPolicyUuid.
+func (s *OpsVolumeV1) GetBackupPolicyUuid() OptString {
+	return s.BackupPolicyUuid
+}
+
+// GetScheduledBackupEnabled returns the value of ScheduledBackupEnabled.
+func (s *OpsVolumeV1) GetScheduledBackupEnabled() OptBool {
+	return s.ScheduledBackupEnabled
+}
+
+// GetRestrictedActions returns the value of RestrictedActions.
+func (s *OpsVolumeV1) GetRestrictedActions() []string {
+	return s.RestrictedActions
+}
+
+// GetExternalUuid returns the value of ExternalUuid.
+func (s *OpsVolumeV1) GetExternalUuid() OptString {
+	return s.ExternalUuid
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *OpsVolumeV1) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *OpsVolumeV1) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// GetDeletedAt returns the value of DeletedAt.
+func (s *OpsVolumeV1) GetDeletedAt() NilDateTime {
+	return s.DeletedAt
+}
+
+// SetResourceType sets the value of ResourceType.
+func (s *OpsVolumeV1) SetResourceType(val string) {
+	s.ResourceType = val
+}
+
+// SetSource sets the value of Source.
+func (s *OpsVolumeV1) SetSource(val OpsSourceV1) {
+	s.Source = val
+}
+
+// SetUUID sets the value of UUID.
+func (s *OpsVolumeV1) SetUUID(val string) {
+	s.UUID = val
+}
+
+// SetName sets the value of Name.
+func (s *OpsVolumeV1) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *OpsVolumeV1) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetState sets the value of State.
+func (s *OpsVolumeV1) SetState(val OptString) {
+	s.State = val
+}
+
+// SetStateDetails sets the value of StateDetails.
+func (s *OpsVolumeV1) SetStateDetails(val OptString) {
+	s.StateDetails = val
+}
+
+// SetStateDetailsWithheld sets the value of StateDetailsWithheld.
+func (s *OpsVolumeV1) SetStateDetailsWithheld(val OptBool) {
+	s.StateDetailsWithheld = val
+}
+
+// SetHealth sets the value of Health.
+func (s *OpsVolumeV1) SetHealth(val OptString) {
+	s.Health = val
+}
+
+// SetProjectNumber sets the value of ProjectNumber.
+func (s *OpsVolumeV1) SetProjectNumber(val OptString) {
+	s.ProjectNumber = val
+}
+
+// SetPoolUuid sets the value of PoolUuid.
+func (s *OpsVolumeV1) SetPoolUuid(val OptString) {
+	s.PoolUuid = val
+}
+
+// SetPoolName sets the value of PoolName.
+func (s *OpsVolumeV1) SetPoolName(val OptString) {
+	s.PoolName = val
+}
+
+// SetSvmUuid sets the value of SvmUuid.
+func (s *OpsVolumeV1) SetSvmUuid(val OptString) {
+	s.SvmUuid = val
+}
+
+// SetSvmName sets the value of SvmName.
+func (s *OpsVolumeV1) SetSvmName(val OptString) {
+	s.SvmName = val
+}
+
+// SetVolumePerformanceGroupUuid sets the value of VolumePerformanceGroupUuid.
+func (s *OpsVolumeV1) SetVolumePerformanceGroupUuid(val OptString) {
+	s.VolumePerformanceGroupUuid = val
+}
+
+// SetSizeInBytes sets the value of SizeInBytes.
+func (s *OpsVolumeV1) SetSizeInBytes(val OptInt64) {
+	s.SizeInBytes = val
+}
+
+// SetUsedBytes sets the value of UsedBytes.
+func (s *OpsVolumeV1) SetUsedBytes(val OptInt64) {
+	s.UsedBytes = val
+}
+
+// SetThroughput sets the value of Throughput.
+func (s *OpsVolumeV1) SetThroughput(val OptInt64) {
+	s.Throughput = val
+}
+
+// SetMountPath sets the value of MountPath.
+func (s *OpsVolumeV1) SetMountPath(val OptString) {
+	s.MountPath = val
+}
+
+// SetCreationToken sets the value of CreationToken.
+func (s *OpsVolumeV1) SetCreationToken(val OptString) {
+	s.CreationToken = val
+}
+
+// SetProtocols sets the value of Protocols.
+func (s *OpsVolumeV1) SetProtocols(val []string) {
+	s.Protocols = val
+}
+
+// SetSecurityStyle sets the value of SecurityStyle.
+func (s *OpsVolumeV1) SetSecurityStyle(val OptString) {
+	s.SecurityStyle = val
+}
+
+// SetIsDataProtection sets the value of IsDataProtection.
+func (s *OpsVolumeV1) SetIsDataProtection(val OptBool) {
+	s.IsDataProtection = val
+}
+
+// SetIsRegionalHa sets the value of IsRegionalHa.
+func (s *OpsVolumeV1) SetIsRegionalHa(val OptBool) {
+	s.IsRegionalHa = val
+}
+
+// SetZone sets the value of Zone.
+func (s *OpsVolumeV1) SetZone(val OptString) {
+	s.Zone = val
+}
+
+// SetSecondaryZone sets the value of SecondaryZone.
+func (s *OpsVolumeV1) SetSecondaryZone(val OptString) {
+	s.SecondaryZone = val
+}
+
+// SetSnapReserve sets the value of SnapReserve.
+func (s *OpsVolumeV1) SetSnapReserve(val OptInt64) {
+	s.SnapReserve = val
+}
+
+// SetSnapshotDirectory sets the value of SnapshotDirectory.
+func (s *OpsVolumeV1) SetSnapshotDirectory(val OptBool) {
+	s.SnapshotDirectory = val
+}
+
+// SetKerberosEnabled sets the value of KerberosEnabled.
+func (s *OpsVolumeV1) SetKerberosEnabled(val OptBool) {
+	s.KerberosEnabled = val
+}
+
+// SetLdapEnabled sets the value of LdapEnabled.
+func (s *OpsVolumeV1) SetLdapEnabled(val OptBool) {
+	s.LdapEnabled = val
+}
+
+// SetAutoTieringEnabled sets the value of AutoTieringEnabled.
+func (s *OpsVolumeV1) SetAutoTieringEnabled(val OptBool) {
+	s.AutoTieringEnabled = val
+}
+
+// SetHotTierSizeGib sets the value of HotTierSizeGib.
+func (s *OpsVolumeV1) SetHotTierSizeGib(val OptInt64) {
+	s.HotTierSizeGib = val
+}
+
+// SetColdTierSizeGib sets the value of ColdTierSizeGib.
+func (s *OpsVolumeV1) SetColdTierSizeGib(val OptInt64) {
+	s.ColdTierSizeGib = val
+}
+
+// SetClonesSharedBytes sets the value of ClonesSharedBytes.
+func (s *OpsVolumeV1) SetClonesSharedBytes(val OptInt64) {
+	s.ClonesSharedBytes = val
+}
+
+// SetBackupVaultUuid sets the value of BackupVaultUuid.
+func (s *OpsVolumeV1) SetBackupVaultUuid(val OptString) {
+	s.BackupVaultUuid = val
+}
+
+// SetBackupPolicyUuid sets the value of BackupPolicyUuid.
+func (s *OpsVolumeV1) SetBackupPolicyUuid(val OptString) {
+	s.BackupPolicyUuid = val
+}
+
+// SetScheduledBackupEnabled sets the value of ScheduledBackupEnabled.
+func (s *OpsVolumeV1) SetScheduledBackupEnabled(val OptBool) {
+	s.ScheduledBackupEnabled = val
+}
+
+// SetRestrictedActions sets the value of RestrictedActions.
+func (s *OpsVolumeV1) SetRestrictedActions(val []string) {
+	s.RestrictedActions = val
+}
+
+// SetExternalUuid sets the value of ExternalUuid.
+func (s *OpsVolumeV1) SetExternalUuid(val OptString) {
+	s.ExternalUuid = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *OpsVolumeV1) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *OpsVolumeV1) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+// SetDeletedAt sets the value of DeletedAt.
+func (s *OpsVolumeV1) SetDeletedAt(val NilDateTime) {
+	s.DeletedAt = val
+}
 
 // NewOptAddressRangeUpdateV1LifeCycleState returns new OptAddressRangeUpdateV1LifeCycleState with value set to v.
 func NewOptAddressRangeUpdateV1LifeCycleState(v AddressRangeUpdateV1LifeCycleState) OptAddressRangeUpdateV1LifeCycleState {
@@ -7118,6 +12281,236 @@ func (o OptNilString) Get() (v string, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilString) Or(d string) string {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOpsCmekServiceAccountV1 returns new OptOpsCmekServiceAccountV1 with value set to v.
+func NewOptOpsCmekServiceAccountV1(v OpsCmekServiceAccountV1) OptOpsCmekServiceAccountV1 {
+	return OptOpsCmekServiceAccountV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOpsCmekServiceAccountV1 is optional OpsCmekServiceAccountV1.
+type OptOpsCmekServiceAccountV1 struct {
+	Value OpsCmekServiceAccountV1
+	Set   bool
+}
+
+// IsSet returns true if OptOpsCmekServiceAccountV1 was set.
+func (o OptOpsCmekServiceAccountV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOpsCmekServiceAccountV1) Reset() {
+	var v OpsCmekServiceAccountV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOpsCmekServiceAccountV1) SetTo(v OpsCmekServiceAccountV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOpsCmekServiceAccountV1) Get() (v OpsCmekServiceAccountV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOpsCmekServiceAccountV1) Or(d OpsCmekServiceAccountV1) OpsCmekServiceAccountV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOpsListFiltersV1 returns new OptOpsListFiltersV1 with value set to v.
+func NewOptOpsListFiltersV1(v OpsListFiltersV1) OptOpsListFiltersV1 {
+	return OptOpsListFiltersV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOpsListFiltersV1 is optional OpsListFiltersV1.
+type OptOpsListFiltersV1 struct {
+	Value OpsListFiltersV1
+	Set   bool
+}
+
+// IsSet returns true if OptOpsListFiltersV1 was set.
+func (o OptOpsListFiltersV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOpsListFiltersV1) Reset() {
+	var v OpsListFiltersV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOpsListFiltersV1) SetTo(v OpsListFiltersV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOpsListFiltersV1) Get() (v OpsListFiltersV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOpsListFiltersV1) Or(d OpsListFiltersV1) OpsListFiltersV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOpsPendingWorkflowTaskV1 returns new OptOpsPendingWorkflowTaskV1 with value set to v.
+func NewOptOpsPendingWorkflowTaskV1(v OpsPendingWorkflowTaskV1) OptOpsPendingWorkflowTaskV1 {
+	return OptOpsPendingWorkflowTaskV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOpsPendingWorkflowTaskV1 is optional OpsPendingWorkflowTaskV1.
+type OptOpsPendingWorkflowTaskV1 struct {
+	Value OpsPendingWorkflowTaskV1
+	Set   bool
+}
+
+// IsSet returns true if OptOpsPendingWorkflowTaskV1 was set.
+func (o OptOpsPendingWorkflowTaskV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOpsPendingWorkflowTaskV1) Reset() {
+	var v OpsPendingWorkflowTaskV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOpsPendingWorkflowTaskV1) SetTo(v OpsPendingWorkflowTaskV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOpsPendingWorkflowTaskV1) Get() (v OpsPendingWorkflowTaskV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOpsPendingWorkflowTaskV1) Or(d OpsPendingWorkflowTaskV1) OpsPendingWorkflowTaskV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOpsPoolCertificateRotationV1 returns new OptOpsPoolCertificateRotationV1 with value set to v.
+func NewOptOpsPoolCertificateRotationV1(v OpsPoolCertificateRotationV1) OptOpsPoolCertificateRotationV1 {
+	return OptOpsPoolCertificateRotationV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOpsPoolCertificateRotationV1 is optional OpsPoolCertificateRotationV1.
+type OptOpsPoolCertificateRotationV1 struct {
+	Value OpsPoolCertificateRotationV1
+	Set   bool
+}
+
+// IsSet returns true if OptOpsPoolCertificateRotationV1 was set.
+func (o OptOpsPoolCertificateRotationV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOpsPoolCertificateRotationV1) Reset() {
+	var v OpsPoolCertificateRotationV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOpsPoolCertificateRotationV1) SetTo(v OpsPoolCertificateRotationV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOpsPoolCertificateRotationV1) Get() (v OpsPoolCertificateRotationV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOpsPoolCertificateRotationV1) Or(d OpsPoolCertificateRotationV1) OpsPoolCertificateRotationV1 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptOpsServiceAccountKeyRotationV1 returns new OptOpsServiceAccountKeyRotationV1 with value set to v.
+func NewOptOpsServiceAccountKeyRotationV1(v OpsServiceAccountKeyRotationV1) OptOpsServiceAccountKeyRotationV1 {
+	return OptOpsServiceAccountKeyRotationV1{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptOpsServiceAccountKeyRotationV1 is optional OpsServiceAccountKeyRotationV1.
+type OptOpsServiceAccountKeyRotationV1 struct {
+	Value OpsServiceAccountKeyRotationV1
+	Set   bool
+}
+
+// IsSet returns true if OptOpsServiceAccountKeyRotationV1 was set.
+func (o OptOpsServiceAccountKeyRotationV1) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptOpsServiceAccountKeyRotationV1) Reset() {
+	var v OpsServiceAccountKeyRotationV1
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptOpsServiceAccountKeyRotationV1) SetTo(v OpsServiceAccountKeyRotationV1) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptOpsServiceAccountKeyRotationV1) Get() (v OpsServiceAccountKeyRotationV1, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptOpsServiceAccountKeyRotationV1) Or(d OpsServiceAccountKeyRotationV1) OpsServiceAccountKeyRotationV1 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -10979,6 +16372,34 @@ type V1GetExternalClusterUnprocessableEntity Error
 
 func (*V1GetExternalClusterUnprocessableEntity) v1GetExternalClusterRes() {}
 
+type V1GetInternalResourceBadRequest Error
+
+func (*V1GetInternalResourceBadRequest) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceConflict Error
+
+func (*V1GetInternalResourceConflict) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceForbidden Error
+
+func (*V1GetInternalResourceForbidden) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceInternalServerError Error
+
+func (*V1GetInternalResourceInternalServerError) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceNotFound Error
+
+func (*V1GetInternalResourceNotFound) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceNotImplemented Error
+
+func (*V1GetInternalResourceNotImplemented) v1GetInternalResourceRes() {}
+
+type V1GetInternalResourceUnauthorized Error
+
+func (*V1GetInternalResourceUnauthorized) v1GetInternalResourceRes() {}
+
 type V1GetMultipleReplicationsByExternalUUIDBadRequest Error
 
 func (*V1GetMultipleReplicationsByExternalUUIDBadRequest) v1GetMultipleReplicationsByExternalUUIDRes() {
@@ -11302,6 +16723,30 @@ func (*V1ListInterclusterLifsOKApplicationJSON) v1ListInterclusterLifsRes() {}
 type V1ListInterclusterLifsUnauthorized Error
 
 func (*V1ListInterclusterLifsUnauthorized) v1ListInterclusterLifsRes() {}
+
+type V1ListInternalResourcesBadRequest Error
+
+func (*V1ListInternalResourcesBadRequest) v1ListInternalResourcesRes() {}
+
+type V1ListInternalResourcesForbidden Error
+
+func (*V1ListInternalResourcesForbidden) v1ListInternalResourcesRes() {}
+
+type V1ListInternalResourcesInternalServerError Error
+
+func (*V1ListInternalResourcesInternalServerError) v1ListInternalResourcesRes() {}
+
+type V1ListInternalResourcesNotFound Error
+
+func (*V1ListInternalResourcesNotFound) v1ListInternalResourcesRes() {}
+
+type V1ListInternalResourcesNotImplemented Error
+
+func (*V1ListInternalResourcesNotImplemented) v1ListInternalResourcesRes() {}
+
+type V1ListInternalResourcesUnauthorized Error
+
+func (*V1ListInternalResourcesUnauthorized) v1ListInternalResourcesRes() {}
 
 type V1ListPoolNasLifsBadRequest Error
 

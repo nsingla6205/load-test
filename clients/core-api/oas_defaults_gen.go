@@ -103,6 +103,14 @@ func (s *OperationV1) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *OpsListResourcesRequestV1) setDefaults() {
+	{
+		val := bool(false)
+		s.IncludeDeleted.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *PoolV1) setDefaults() {
 	{
 		val := PoolV1QosType("auto")

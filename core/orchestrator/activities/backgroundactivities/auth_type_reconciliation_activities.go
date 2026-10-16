@@ -76,7 +76,7 @@ func inferDemotedExpertCertificateUsername(credential *datamodel.ExpertModeCrede
 }
 
 func expertUsernameFromCertificateID(certificateID string) (string, bool) {
-	if _, timestamped := certificateIDTimestamp(certificateID); !timestamped {
+	if _, timestamped := CertificateIDTimestamp(certificateID); !timestamped {
 		return "", false
 	}
 	const certificateMarker = "-cert-"

@@ -214,6 +214,27 @@ type Handler interface {
 	//
 	// GET /v1/externalClusters/{externalClusterId}
 	V1GetExternalCluster(ctx context.Context, params V1GetExternalClusterParams) (V1GetExternalClusterRes, error)
+	// V1GetInternalResource implements v1_getInternalResource operation.
+	//
+	// Read-only admin API for Google tooling and internal SRE (ops inventory). Returns one row of the
+	// given resourceType from the VCP database, as stored, including transitional (CREATING, UPDATING),
+	// ERROR and soft-deleted rows (deletedAt is set on deleted rows). The response is an explicit
+	// allowlist of reviewed fields; secrets and raw provider errors are never returned. Send exactly one
+	// of identity.uuid or identity.name. projectNumber in the path is the GCP project number; use "-"
+	// for any project. Get by uuid works with "-". Get by name needs a project number and, where the
+	// name is only unique under a parent, that parent: pool for volume, volume for snapshot and
+	// replication, backupVault for backup. Get by name is not supported for cmek and job (use uuid). If
+	// several live rows match a name the API returns 409. With a project number, a resource of another
+	// project returns 404. locationId is a region or zone of this deployment, or "-". Like Google Proxy,
+	// the region must be this Core's region (else 400) and a zone does not filter rows. For job, the
+	// response also carries a read-only Temporal describe of the job's workflow (temporal.
+	// enrichmentStatus says whether it succeeded). This API returns the VCP DB row only. For backup,
+	// replication, activeDirectory and cmek, Google Proxy merges CVP data into its own responses; that
+	// merge is not done here, so CVP-only fields are absent. GCP only in v1; other clouds return 501.
+	// POST is used for a typed body; the call is read-only and safe to retry.
+	//
+	// POST /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:get
+	V1GetInternalResource(ctx context.Context, req *OpsGetResourceRequestV1, params V1GetInternalResourceParams) (V1GetInternalResourceRes, error)
 	// V1GetMultipleReplicationsByExternalUUID implements v1_getMultipleReplicationsByExternalUUID operation.
 	//
 	// Returns replications filtered by external UUIDs and endpoint type.
@@ -288,6 +309,25 @@ type Handler interface {
 	//
 	// GET /v1/interclusterLif
 	V1ListInterclusterLifs(ctx context.Context, params V1ListInterclusterLifsParams) (V1ListInterclusterLifsRes, error)
+	// V1ListInternalResources implements v1_listInternalResources operation.
+	//
+	// Read-only admin API for Google tooling and internal SRE (ops inventory). Lists rows of one
+	// resourceType from the VCP database with keyset paging (ordered by internal id). projectNumber in
+	// the path is the GCP project number (digits only) and is required, except for job, where "-" lists
+	// across projects. A job list with "-" must send at least one other filter (resource parent,
+	// correlationId, state, type or a time filter); admin jobs have no project and are only reachable
+	// this way. locationId is a region or zone of this deployment, or "-". Like Google Proxy, the region
+	// must be this Core's region (else 400) and a zone does not filter rows. parents are AND-ed, at most
+	// one per type; each resourceType allows only its own parent types. timeFilters use the half-open
+	// range [from, to) in UTC. filters.name and filters.state are exact matches. includeDeleted (default
+	// false) adds soft-deleted rows. pageSize defaults to 10; values above 50 are clamped to 50.
+	// nextPageToken is empty on the last page; a token is only valid with the same project and filters.
+	// The token is base64 and not signed or encrypted: a caller can decode the internal row id it holds.
+	// List rows of job carry temporal.enrichmentStatus SKIPPED; use get for the Temporal describe. This
+	// API returns VCP DB rows only (no CVP merge). GCP only in v1; other clouds return 501.
+	//
+	// POST /v1/internal/projects/{projectNumber}/locations/{locationId}/resources:list
+	V1ListInternalResources(ctx context.Context, req *OpsListResourcesRequestV1, params V1ListInternalResourcesParams) (V1ListInternalResourcesRes, error)
 	// V1ListPoolNasLifs implements v1_listPoolNasLifs operation.
 	//
 	// Returns the NAS LIFs stored in the pool VLM config. Both ilbnas and nas LIF entries are included.

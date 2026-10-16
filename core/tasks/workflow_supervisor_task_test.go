@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vcp-vsa-control-Plane/vsa-control-plane/core/orchestrator/workflows"
 	supervisorhandler "github.com/vcp-vsa-control-Plane/vsa-control-plane/core/tasks/supervisor-handler"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
 	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
@@ -1527,3 +1528,24 @@ func TestWorkflowSupervisorTaskRunnerEvaluateJobChecksSequencerBeforeCleanup(t *
 	}
 }
 
+
+func TestIsSequencerBackedJobType(t *testing.T) {
+	for jobType := range sequencerBackedJobTypes {
+		assert.True(t, IsSequencerBackedJobType(string(jobType)), jobType)
+	}
+	assert.False(t, IsSequencerBackedJobType(string(datamodel.JobTypeCreatePool)))
+	assert.False(t, IsSequencerBackedJobType(""))
+}
+
+func TestSequenceWorkflowID(t *testing.T) {
+	t.Run("WhenVendorIDIsValid", func(t *testing.T) {
+		id, err := SequenceWorkflowID(7, "/projects/1/locations/us-east4/pools/p1", "p1")
+		require.NoError(t, err)
+		assert.Equal(t, workflows.GenerateControlWorkflowID(7, "us-east4", "p1"), id)
+	})
+
+	t.Run("WhenVendorIDIsInvalid", func(t *testing.T) {
+		_, err := SequenceWorkflowID(7, "garbage", "p1")
+		assert.ErrorContains(t, err, "resolve location")
+	})
+}

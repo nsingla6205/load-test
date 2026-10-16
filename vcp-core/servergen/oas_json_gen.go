@@ -9144,6 +9144,52 @@ func (s *NasLifIPUpdateV1) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes time.Time as json.
+func (o NilDateTime) Encode(e *jx.Encoder, format func(*jx.Encoder, time.Time)) {
+	if o.Null {
+		e.Null()
+		return
+	}
+	format(e, o.Value)
+}
+
+// Decode decodes time.Time from json.
+func (o *NilDateTime) Decode(d *jx.Decoder, format func(*jx.Decoder) (time.Time, error)) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode NilDateTime to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v time.Time
+		o.Value = v
+		o.Null = true
+		return nil
+	}
+	o.Null = false
+	v, err := format(d)
+	if err != nil {
+		return err
+	}
+	o.Value = v
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s NilDateTime) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e, json.EncodeDateTime)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *NilDateTime) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d, json.DecodeDateTime)
+}
+
 // Encode implements json.Marshaler.
 func (s *OntapCredentialsV1) Encode(e *jx.Encoder) {
 	e.ObjStart()
@@ -9613,6 +9659,10574 @@ func (s *OperationV1) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OperationV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsActiveDirectoryV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsActiveDirectoryV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.Username.Set {
+			e.FieldStart("username")
+			s.Username.Encode(e)
+		}
+	}
+	{
+		if s.Domain.Set {
+			e.FieldStart("domain")
+			s.Domain.Encode(e)
+		}
+	}
+	{
+		if s.DNS.Set {
+			e.FieldStart("dns")
+			s.DNS.Encode(e)
+		}
+	}
+	{
+		if s.NetBios.Set {
+			e.FieldStart("netBios")
+			s.NetBios.Encode(e)
+		}
+	}
+	{
+		if s.ChangeId.Set {
+			e.FieldStart("changeId")
+			s.ChangeId.Encode(e)
+		}
+	}
+	{
+		if s.OrganizationalUnit.Set {
+			e.FieldStart("organizationalUnit")
+			s.OrganizationalUnit.Encode(e)
+		}
+	}
+	{
+		if s.Site.Set {
+			e.FieldStart("site")
+			s.Site.Encode(e)
+		}
+	}
+	{
+		if s.KdcIp.Set {
+			e.FieldStart("kdcIp")
+			s.KdcIp.Encode(e)
+		}
+	}
+	{
+		if s.KdcHostname.Set {
+			e.FieldStart("kdcHostname")
+			s.KdcHostname.Encode(e)
+		}
+	}
+	{
+		if s.UserDn.Set {
+			e.FieldStart("userDn")
+			s.UserDn.Encode(e)
+		}
+	}
+	{
+		if s.GroupDn.Set {
+			e.FieldStart("groupDn")
+			s.GroupDn.Encode(e)
+		}
+	}
+	{
+		if s.GroupMembershipFilter.Set {
+			e.FieldStart("groupMembershipFilter")
+			s.GroupMembershipFilter.Encode(e)
+		}
+	}
+	{
+		if s.PreferredServersForLdapClient.Set {
+			e.FieldStart("preferredServersForLdapClient")
+			s.PreferredServersForLdapClient.Encode(e)
+		}
+	}
+	{
+		if s.PrimaryAd.Set {
+			e.FieldStart("primaryAd")
+			s.PrimaryAd.Encode(e)
+		}
+	}
+	{
+		if s.ManagedAd.Set {
+			e.FieldStart("managedAd")
+			s.ManagedAd.Encode(e)
+		}
+	}
+	{
+		if s.AesEncryption.Set {
+			e.FieldStart("aesEncryption")
+			s.AesEncryption.Encode(e)
+		}
+	}
+	{
+		if s.EncryptDcConnections.Set {
+			e.FieldStart("encryptDcConnections")
+			s.EncryptDcConnections.Encode(e)
+		}
+	}
+	{
+		if s.LdapSigning.Set {
+			e.FieldStart("ldapSigning")
+			s.LdapSigning.Encode(e)
+		}
+	}
+	{
+		if s.LdapOverTls.Set {
+			e.FieldStart("ldapOverTls")
+			s.LdapOverTls.Encode(e)
+		}
+	}
+	{
+		if s.AllowLocalNfsUsersWithLdap.Set {
+			e.FieldStart("allowLocalNfsUsersWithLdap")
+			s.AllowLocalNfsUsersWithLdap.Encode(e)
+		}
+	}
+	{
+		if s.SvmIds != nil {
+			e.FieldStart("svmIds")
+			e.ArrStart()
+			for _, elem := range s.SvmIds {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.ServerRootCaCertificateSha256.Set {
+			e.FieldStart("serverRootCaCertificateSha256")
+			s.ServerRootCaCertificateSha256.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsActiveDirectoryV1 = [34]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "username",
+	10: "domain",
+	11: "dns",
+	12: "netBios",
+	13: "changeId",
+	14: "organizationalUnit",
+	15: "site",
+	16: "kdcIp",
+	17: "kdcHostname",
+	18: "userDn",
+	19: "groupDn",
+	20: "groupMembershipFilter",
+	21: "preferredServersForLdapClient",
+	22: "primaryAd",
+	23: "managedAd",
+	24: "aesEncryption",
+	25: "encryptDcConnections",
+	26: "ldapSigning",
+	27: "ldapOverTls",
+	28: "allowLocalNfsUsersWithLdap",
+	29: "svmIds",
+	30: "serverRootCaCertificateSha256",
+	31: "createdAt",
+	32: "updatedAt",
+	33: "deletedAt",
+}
+
+// Decode decodes OpsActiveDirectoryV1 from json.
+func (s *OpsActiveDirectoryV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsActiveDirectoryV1 to nil")
+	}
+	var requiredBitSet [5]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "username":
+			if err := func() error {
+				s.Username.Reset()
+				if err := s.Username.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"username\"")
+			}
+		case "domain":
+			if err := func() error {
+				s.Domain.Reset()
+				if err := s.Domain.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"domain\"")
+			}
+		case "dns":
+			if err := func() error {
+				s.DNS.Reset()
+				if err := s.DNS.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"dns\"")
+			}
+		case "netBios":
+			if err := func() error {
+				s.NetBios.Reset()
+				if err := s.NetBios.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"netBios\"")
+			}
+		case "changeId":
+			if err := func() error {
+				s.ChangeId.Reset()
+				if err := s.ChangeId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"changeId\"")
+			}
+		case "organizationalUnit":
+			if err := func() error {
+				s.OrganizationalUnit.Reset()
+				if err := s.OrganizationalUnit.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"organizationalUnit\"")
+			}
+		case "site":
+			if err := func() error {
+				s.Site.Reset()
+				if err := s.Site.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"site\"")
+			}
+		case "kdcIp":
+			if err := func() error {
+				s.KdcIp.Reset()
+				if err := s.KdcIp.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kdcIp\"")
+			}
+		case "kdcHostname":
+			if err := func() error {
+				s.KdcHostname.Reset()
+				if err := s.KdcHostname.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kdcHostname\"")
+			}
+		case "userDn":
+			if err := func() error {
+				s.UserDn.Reset()
+				if err := s.UserDn.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"userDn\"")
+			}
+		case "groupDn":
+			if err := func() error {
+				s.GroupDn.Reset()
+				if err := s.GroupDn.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"groupDn\"")
+			}
+		case "groupMembershipFilter":
+			if err := func() error {
+				s.GroupMembershipFilter.Reset()
+				if err := s.GroupMembershipFilter.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"groupMembershipFilter\"")
+			}
+		case "preferredServersForLdapClient":
+			if err := func() error {
+				s.PreferredServersForLdapClient.Reset()
+				if err := s.PreferredServersForLdapClient.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"preferredServersForLdapClient\"")
+			}
+		case "primaryAd":
+			if err := func() error {
+				s.PrimaryAd.Reset()
+				if err := s.PrimaryAd.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"primaryAd\"")
+			}
+		case "managedAd":
+			if err := func() error {
+				s.ManagedAd.Reset()
+				if err := s.ManagedAd.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"managedAd\"")
+			}
+		case "aesEncryption":
+			if err := func() error {
+				s.AesEncryption.Reset()
+				if err := s.AesEncryption.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"aesEncryption\"")
+			}
+		case "encryptDcConnections":
+			if err := func() error {
+				s.EncryptDcConnections.Reset()
+				if err := s.EncryptDcConnections.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"encryptDcConnections\"")
+			}
+		case "ldapSigning":
+			if err := func() error {
+				s.LdapSigning.Reset()
+				if err := s.LdapSigning.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ldapSigning\"")
+			}
+		case "ldapOverTls":
+			if err := func() error {
+				s.LdapOverTls.Reset()
+				if err := s.LdapOverTls.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ldapOverTls\"")
+			}
+		case "allowLocalNfsUsersWithLdap":
+			if err := func() error {
+				s.AllowLocalNfsUsersWithLdap.Reset()
+				if err := s.AllowLocalNfsUsersWithLdap.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"allowLocalNfsUsersWithLdap\"")
+			}
+		case "svmIds":
+			if err := func() error {
+				s.SvmIds = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.SvmIds = append(s.SvmIds, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svmIds\"")
+			}
+		case "serverRootCaCertificateSha256":
+			if err := func() error {
+				s.ServerRootCaCertificateSha256.Reset()
+				if err := s.ServerRootCaCertificateSha256.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serverRootCaCertificateSha256\"")
+			}
+		case "createdAt":
+			requiredBitSet[3] |= 1 << 7
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[4] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[4] |= 1 << 1
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsActiveDirectoryV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [5]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000000,
+		0b10000000,
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsActiveDirectoryV1) {
+					name = jsonFieldsNameOfOpsActiveDirectoryV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsActiveDirectoryV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsActiveDirectoryV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsBackupPolicyV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsBackupPolicyV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.DailyBackupsToKeep.Set {
+			e.FieldStart("dailyBackupsToKeep")
+			s.DailyBackupsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.WeeklyBackupsToKeep.Set {
+			e.FieldStart("weeklyBackupsToKeep")
+			s.WeeklyBackupsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.MonthlyBackupsToKeep.Set {
+			e.FieldStart("monthlyBackupsToKeep")
+			s.MonthlyBackupsToKeep.Encode(e)
+		}
+	}
+	{
+		if s.PolicyEnabled.Set {
+			e.FieldStart("policyEnabled")
+			s.PolicyEnabled.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsBackupPolicyV1 = [16]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "dailyBackupsToKeep",
+	10: "weeklyBackupsToKeep",
+	11: "monthlyBackupsToKeep",
+	12: "policyEnabled",
+	13: "createdAt",
+	14: "updatedAt",
+	15: "deletedAt",
+}
+
+// Decode decodes OpsBackupPolicyV1 from json.
+func (s *OpsBackupPolicyV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsBackupPolicyV1 to nil")
+	}
+	var requiredBitSet [2]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "dailyBackupsToKeep":
+			if err := func() error {
+				s.DailyBackupsToKeep.Reset()
+				if err := s.DailyBackupsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"dailyBackupsToKeep\"")
+			}
+		case "weeklyBackupsToKeep":
+			if err := func() error {
+				s.WeeklyBackupsToKeep.Reset()
+				if err := s.WeeklyBackupsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"weeklyBackupsToKeep\"")
+			}
+		case "monthlyBackupsToKeep":
+			if err := func() error {
+				s.MonthlyBackupsToKeep.Reset()
+				if err := s.MonthlyBackupsToKeep.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"monthlyBackupsToKeep\"")
+			}
+		case "policyEnabled":
+			if err := func() error {
+				s.PolicyEnabled.Reset()
+				if err := s.PolicyEnabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"policyEnabled\"")
+			}
+		case "createdAt":
+			requiredBitSet[1] |= 1 << 5
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[1] |= 1 << 6
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[1] |= 1 << 7
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsBackupPolicyV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [2]uint8{
+		0b00000111,
+		0b11100000,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsBackupPolicyV1) {
+					name = jsonFieldsNameOfOpsBackupPolicyV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsBackupPolicyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsBackupPolicyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsBackupV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsBackupV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.BackupVaultUuid.Set {
+			e.FieldStart("backupVaultUuid")
+			s.BackupVaultUuid.Encode(e)
+		}
+	}
+	{
+		if s.BackupVaultName.Set {
+			e.FieldStart("backupVaultName")
+			s.BackupVaultName.Encode(e)
+		}
+	}
+	{
+		if s.VolumeUuid.Set {
+			e.FieldStart("volumeUuid")
+			s.VolumeUuid.Encode(e)
+		}
+	}
+	{
+		if s.VolumeName.Set {
+			e.FieldStart("volumeName")
+			s.VolumeName.Encode(e)
+		}
+	}
+	{
+		if s.SourceVolumeZone.Set {
+			e.FieldStart("sourceVolumeZone")
+			s.SourceVolumeZone.Encode(e)
+		}
+	}
+	{
+		if s.Type.Set {
+			e.FieldStart("type")
+			s.Type.Encode(e)
+		}
+	}
+	{
+		if s.ScheduleTag.Set {
+			e.FieldStart("scheduleTag")
+			s.ScheduleTag.Encode(e)
+		}
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("sizeInBytes")
+			s.SizeInBytes.Encode(e)
+		}
+	}
+	{
+		if s.LatestLogicalBackupSize.Set {
+			e.FieldStart("latestLogicalBackupSize")
+			s.LatestLogicalBackupSize.Encode(e)
+		}
+	}
+	{
+		if s.ExternalUuid.Set {
+			e.FieldStart("externalUuid")
+			s.ExternalUuid.Encode(e)
+		}
+	}
+	{
+		if s.BackupPolicyName.Set {
+			e.FieldStart("backupPolicyName")
+			s.BackupPolicyName.Encode(e)
+		}
+	}
+	{
+		if s.SnapshotName.Set {
+			e.FieldStart("snapshotName")
+			s.SnapshotName.Encode(e)
+		}
+	}
+	{
+		if s.CompletionTime.Set {
+			e.FieldStart("completionTime")
+			s.CompletionTime.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsBackupV1 = [25]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "backupVaultUuid",
+	10: "backupVaultName",
+	11: "volumeUuid",
+	12: "volumeName",
+	13: "sourceVolumeZone",
+	14: "type",
+	15: "scheduleTag",
+	16: "sizeInBytes",
+	17: "latestLogicalBackupSize",
+	18: "externalUuid",
+	19: "backupPolicyName",
+	20: "snapshotName",
+	21: "completionTime",
+	22: "createdAt",
+	23: "updatedAt",
+	24: "deletedAt",
+}
+
+// Decode decodes OpsBackupV1 from json.
+func (s *OpsBackupV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsBackupV1 to nil")
+	}
+	var requiredBitSet [4]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "backupVaultUuid":
+			if err := func() error {
+				s.BackupVaultUuid.Reset()
+				if err := s.BackupVaultUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupVaultUuid\"")
+			}
+		case "backupVaultName":
+			if err := func() error {
+				s.BackupVaultName.Reset()
+				if err := s.BackupVaultName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupVaultName\"")
+			}
+		case "volumeUuid":
+			if err := func() error {
+				s.VolumeUuid.Reset()
+				if err := s.VolumeUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeUuid\"")
+			}
+		case "volumeName":
+			if err := func() error {
+				s.VolumeName.Reset()
+				if err := s.VolumeName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeName\"")
+			}
+		case "sourceVolumeZone":
+			if err := func() error {
+				s.SourceVolumeZone.Reset()
+				if err := s.SourceVolumeZone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceVolumeZone\"")
+			}
+		case "type":
+			if err := func() error {
+				s.Type.Reset()
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		case "scheduleTag":
+			if err := func() error {
+				s.ScheduleTag.Reset()
+				if err := s.ScheduleTag.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scheduleTag\"")
+			}
+		case "sizeInBytes":
+			if err := func() error {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sizeInBytes\"")
+			}
+		case "latestLogicalBackupSize":
+			if err := func() error {
+				s.LatestLogicalBackupSize.Reset()
+				if err := s.LatestLogicalBackupSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"latestLogicalBackupSize\"")
+			}
+		case "externalUuid":
+			if err := func() error {
+				s.ExternalUuid.Reset()
+				if err := s.ExternalUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"externalUuid\"")
+			}
+		case "backupPolicyName":
+			if err := func() error {
+				s.BackupPolicyName.Reset()
+				if err := s.BackupPolicyName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupPolicyName\"")
+			}
+		case "snapshotName":
+			if err := func() error {
+				s.SnapshotName.Reset()
+				if err := s.SnapshotName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotName\"")
+			}
+		case "completionTime":
+			if err := func() error {
+				s.CompletionTime.Reset()
+				if err := s.CompletionTime.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"completionTime\"")
+			}
+		case "createdAt":
+			requiredBitSet[2] |= 1 << 6
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[2] |= 1 << 7
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[3] |= 1 << 0
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsBackupV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [4]uint8{
+		0b00000111,
+		0b00000000,
+		0b11000000,
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsBackupV1) {
+					name = jsonFieldsNameOfOpsBackupV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsBackupV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsBackupV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsBackupVaultV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsBackupVaultV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.BackupVaultType.Set {
+			e.FieldStart("backupVaultType")
+			s.BackupVaultType.Encode(e)
+		}
+	}
+	{
+		if s.ServiceType.Set {
+			e.FieldStart("serviceType")
+			s.ServiceType.Encode(e)
+		}
+	}
+	{
+		if s.BackupRegionName.Set {
+			e.FieldStart("backupRegionName")
+			s.BackupRegionName.Encode(e)
+		}
+	}
+	{
+		if s.SourceRegionName.Set {
+			e.FieldStart("sourceRegionName")
+			s.SourceRegionName.Encode(e)
+		}
+	}
+	{
+		if s.CrossRegionBackupVaultName.Set {
+			e.FieldStart("crossRegionBackupVaultName")
+			s.CrossRegionBackupVaultName.Encode(e)
+		}
+	}
+	{
+		if s.ExternalUuid.Set {
+			e.FieldStart("externalUuid")
+			s.ExternalUuid.Encode(e)
+		}
+	}
+	{
+		if s.KmsConfigResourcePath.Set {
+			e.FieldStart("kmsConfigResourcePath")
+			s.KmsConfigResourcePath.Encode(e)
+		}
+	}
+	{
+		if s.EncryptionState.Set {
+			e.FieldStart("encryptionState")
+			s.EncryptionState.Encode(e)
+		}
+	}
+	{
+		if s.BackupsPrimaryKeyVersion.Set {
+			e.FieldStart("backupsPrimaryKeyVersion")
+			s.BackupsPrimaryKeyVersion.Encode(e)
+		}
+	}
+	{
+		if s.BucketNames != nil {
+			e.FieldStart("bucketNames")
+			e.ArrStart()
+			for _, elem := range s.BucketNames {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.BackupMinimumEnforcedRetentionDuration.Set {
+			e.FieldStart("backupMinimumEnforcedRetentionDuration")
+			s.BackupMinimumEnforcedRetentionDuration.Encode(e)
+		}
+	}
+	{
+		if s.IsDailyBackupImmutable.Set {
+			e.FieldStart("isDailyBackupImmutable")
+			s.IsDailyBackupImmutable.Encode(e)
+		}
+	}
+	{
+		if s.IsWeeklyBackupImmutable.Set {
+			e.FieldStart("isWeeklyBackupImmutable")
+			s.IsWeeklyBackupImmutable.Encode(e)
+		}
+	}
+	{
+		if s.IsMonthlyBackupImmutable.Set {
+			e.FieldStart("isMonthlyBackupImmutable")
+			s.IsMonthlyBackupImmutable.Encode(e)
+		}
+	}
+	{
+		if s.IsAdhocBackupImmutable.Set {
+			e.FieldStart("isAdhocBackupImmutable")
+			s.IsAdhocBackupImmutable.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsBackupVaultV1 = [27]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "backupVaultType",
+	10: "serviceType",
+	11: "backupRegionName",
+	12: "sourceRegionName",
+	13: "crossRegionBackupVaultName",
+	14: "externalUuid",
+	15: "kmsConfigResourcePath",
+	16: "encryptionState",
+	17: "backupsPrimaryKeyVersion",
+	18: "bucketNames",
+	19: "backupMinimumEnforcedRetentionDuration",
+	20: "isDailyBackupImmutable",
+	21: "isWeeklyBackupImmutable",
+	22: "isMonthlyBackupImmutable",
+	23: "isAdhocBackupImmutable",
+	24: "createdAt",
+	25: "updatedAt",
+	26: "deletedAt",
+}
+
+// Decode decodes OpsBackupVaultV1 from json.
+func (s *OpsBackupVaultV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsBackupVaultV1 to nil")
+	}
+	var requiredBitSet [4]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "backupVaultType":
+			if err := func() error {
+				s.BackupVaultType.Reset()
+				if err := s.BackupVaultType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupVaultType\"")
+			}
+		case "serviceType":
+			if err := func() error {
+				s.ServiceType.Reset()
+				if err := s.ServiceType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceType\"")
+			}
+		case "backupRegionName":
+			if err := func() error {
+				s.BackupRegionName.Reset()
+				if err := s.BackupRegionName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupRegionName\"")
+			}
+		case "sourceRegionName":
+			if err := func() error {
+				s.SourceRegionName.Reset()
+				if err := s.SourceRegionName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceRegionName\"")
+			}
+		case "crossRegionBackupVaultName":
+			if err := func() error {
+				s.CrossRegionBackupVaultName.Reset()
+				if err := s.CrossRegionBackupVaultName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"crossRegionBackupVaultName\"")
+			}
+		case "externalUuid":
+			if err := func() error {
+				s.ExternalUuid.Reset()
+				if err := s.ExternalUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"externalUuid\"")
+			}
+		case "kmsConfigResourcePath":
+			if err := func() error {
+				s.KmsConfigResourcePath.Reset()
+				if err := s.KmsConfigResourcePath.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kmsConfigResourcePath\"")
+			}
+		case "encryptionState":
+			if err := func() error {
+				s.EncryptionState.Reset()
+				if err := s.EncryptionState.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"encryptionState\"")
+			}
+		case "backupsPrimaryKeyVersion":
+			if err := func() error {
+				s.BackupsPrimaryKeyVersion.Reset()
+				if err := s.BackupsPrimaryKeyVersion.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupsPrimaryKeyVersion\"")
+			}
+		case "bucketNames":
+			if err := func() error {
+				s.BucketNames = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.BucketNames = append(s.BucketNames, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"bucketNames\"")
+			}
+		case "backupMinimumEnforcedRetentionDuration":
+			if err := func() error {
+				s.BackupMinimumEnforcedRetentionDuration.Reset()
+				if err := s.BackupMinimumEnforcedRetentionDuration.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupMinimumEnforcedRetentionDuration\"")
+			}
+		case "isDailyBackupImmutable":
+			if err := func() error {
+				s.IsDailyBackupImmutable.Reset()
+				if err := s.IsDailyBackupImmutable.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isDailyBackupImmutable\"")
+			}
+		case "isWeeklyBackupImmutable":
+			if err := func() error {
+				s.IsWeeklyBackupImmutable.Reset()
+				if err := s.IsWeeklyBackupImmutable.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isWeeklyBackupImmutable\"")
+			}
+		case "isMonthlyBackupImmutable":
+			if err := func() error {
+				s.IsMonthlyBackupImmutable.Reset()
+				if err := s.IsMonthlyBackupImmutable.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isMonthlyBackupImmutable\"")
+			}
+		case "isAdhocBackupImmutable":
+			if err := func() error {
+				s.IsAdhocBackupImmutable.Reset()
+				if err := s.IsAdhocBackupImmutable.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isAdhocBackupImmutable\"")
+			}
+		case "createdAt":
+			requiredBitSet[3] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[3] |= 1 << 1
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[3] |= 1 << 2
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsBackupVaultV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [4]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000000,
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsBackupVaultV1) {
+					name = jsonFieldsNameOfOpsBackupVaultV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsBackupVaultV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsBackupVaultV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsCmekServiceAccountV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsCmekServiceAccountV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Email.Set {
+			e.FieldStart("email")
+			s.Email.Encode(e)
+		}
+	}
+	{
+		if s.ServiceName.Set {
+			e.FieldStart("serviceName")
+			s.ServiceName.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.KeyRotation.Set {
+			e.FieldStart("keyRotation")
+			s.KeyRotation.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsCmekServiceAccountV1 = [11]string{
+	0:  "uuid",
+	1:  "name",
+	2:  "email",
+	3:  "serviceName",
+	4:  "state",
+	5:  "stateDetails",
+	6:  "stateDetailsWithheld",
+	7:  "keyRotation",
+	8:  "createdAt",
+	9:  "updatedAt",
+	10: "deletedAt",
+}
+
+// Decode decodes OpsCmekServiceAccountV1 from json.
+func (s *OpsCmekServiceAccountV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsCmekServiceAccountV1 to nil")
+	}
+	var requiredBitSet [2]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "uuid":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "email":
+			if err := func() error {
+				s.Email.Reset()
+				if err := s.Email.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"email\"")
+			}
+		case "serviceName":
+			if err := func() error {
+				s.ServiceName.Reset()
+				if err := s.ServiceName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceName\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "keyRotation":
+			if err := func() error {
+				s.KeyRotation.Reset()
+				if err := s.KeyRotation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyRotation\"")
+			}
+		case "createdAt":
+			requiredBitSet[1] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[1] |= 1 << 1
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[1] |= 1 << 2
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsCmekServiceAccountV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [2]uint8{
+		0b00000001,
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsCmekServiceAccountV1) {
+					name = jsonFieldsNameOfOpsCmekServiceAccountV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsCmekServiceAccountV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsCmekServiceAccountV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsCmekV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsCmekV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.ResourceId.Set {
+			e.FieldStart("resourceId")
+			s.ResourceId.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.KeyRing.Set {
+			e.FieldStart("keyRing")
+			s.KeyRing.Encode(e)
+		}
+	}
+	{
+		if s.KeyRingLocation.Set {
+			e.FieldStart("keyRingLocation")
+			s.KeyRingLocation.Encode(e)
+		}
+	}
+	{
+		if s.KeyName.Set {
+			e.FieldStart("keyName")
+			s.KeyName.Encode(e)
+		}
+	}
+	{
+		if s.KeyProjectId.Set {
+			e.FieldStart("keyProjectId")
+			s.KeyProjectId.Encode(e)
+		}
+	}
+	{
+		if s.CustomerProjectId.Set {
+			e.FieldStart("customerProjectId")
+			s.CustomerProjectId.Encode(e)
+		}
+	}
+	{
+		if s.CreationMode.Set {
+			e.FieldStart("creationMode")
+			s.CreationMode.Encode(e)
+		}
+	}
+	{
+		if s.ServiceAccountEmail.Set {
+			e.FieldStart("serviceAccountEmail")
+			s.ServiceAccountEmail.Encode(e)
+		}
+	}
+	{
+		if s.SdeHealthy.Set {
+			e.FieldStart("sdeHealthy")
+			s.SdeHealthy.Encode(e)
+		}
+	}
+	{
+		if s.ServiceAccount.Set {
+			e.FieldStart("serviceAccount")
+			s.ServiceAccount.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsCmekV1 = [21]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "resourceId",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "keyRing",
+	10: "keyRingLocation",
+	11: "keyName",
+	12: "keyProjectId",
+	13: "customerProjectId",
+	14: "creationMode",
+	15: "serviceAccountEmail",
+	16: "sdeHealthy",
+	17: "serviceAccount",
+	18: "createdAt",
+	19: "updatedAt",
+	20: "deletedAt",
+}
+
+// Decode decodes OpsCmekV1 from json.
+func (s *OpsCmekV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsCmekV1 to nil")
+	}
+	var requiredBitSet [3]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "resourceId":
+			if err := func() error {
+				s.ResourceId.Reset()
+				if err := s.ResourceId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceId\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "keyRing":
+			if err := func() error {
+				s.KeyRing.Reset()
+				if err := s.KeyRing.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyRing\"")
+			}
+		case "keyRingLocation":
+			if err := func() error {
+				s.KeyRingLocation.Reset()
+				if err := s.KeyRingLocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyRingLocation\"")
+			}
+		case "keyName":
+			if err := func() error {
+				s.KeyName.Reset()
+				if err := s.KeyName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyName\"")
+			}
+		case "keyProjectId":
+			if err := func() error {
+				s.KeyProjectId.Reset()
+				if err := s.KeyProjectId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyProjectId\"")
+			}
+		case "customerProjectId":
+			if err := func() error {
+				s.CustomerProjectId.Reset()
+				if err := s.CustomerProjectId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"customerProjectId\"")
+			}
+		case "creationMode":
+			if err := func() error {
+				s.CreationMode.Reset()
+				if err := s.CreationMode.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"creationMode\"")
+			}
+		case "serviceAccountEmail":
+			if err := func() error {
+				s.ServiceAccountEmail.Reset()
+				if err := s.ServiceAccountEmail.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceAccountEmail\"")
+			}
+		case "sdeHealthy":
+			if err := func() error {
+				s.SdeHealthy.Reset()
+				if err := s.SdeHealthy.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sdeHealthy\"")
+			}
+		case "serviceAccount":
+			if err := func() error {
+				s.ServiceAccount.Reset()
+				if err := s.ServiceAccount.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceAccount\"")
+			}
+		case "createdAt":
+			requiredBitSet[2] |= 1 << 2
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[2] |= 1 << 3
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[2] |= 1 << 4
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsCmekV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [3]uint8{
+		0b00000111,
+		0b00000000,
+		0b00011100,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsCmekV1) {
+					name = jsonFieldsNameOfOpsCmekV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsCmekV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsCmekV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsGetResourceRequestV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsGetResourceRequestV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		s.ResourceType.Encode(e)
+	}
+	{
+		e.FieldStart("identity")
+		s.Identity.Encode(e)
+	}
+	{
+		if s.Parents != nil {
+			e.FieldStart("parents")
+			e.ArrStart()
+			for _, elem := range s.Parents {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsGetResourceRequestV1 = [3]string{
+	0: "resourceType",
+	1: "identity",
+	2: "parents",
+}
+
+// Decode decodes OpsGetResourceRequestV1 from json.
+func (s *OpsGetResourceRequestV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsGetResourceRequestV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.ResourceType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "identity":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Identity.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"identity\"")
+			}
+		case "parents":
+			if err := func() error {
+				s.Parents = make([]OpsParentV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsParentV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Parents = append(s.Parents, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parents\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsGetResourceRequestV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsGetResourceRequestV1) {
+					name = jsonFieldsNameOfOpsGetResourceRequestV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsGetResourceRequestV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsGetResourceRequestV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsIdentityV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsIdentityV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.UUID.Set {
+			e.FieldStart("uuid")
+			s.UUID.Encode(e)
+		}
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsIdentityV1 = [2]string{
+	0: "uuid",
+	1: "name",
+}
+
+// Decode decodes OpsIdentityV1 from json.
+func (s *OpsIdentityV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsIdentityV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "uuid":
+			if err := func() error {
+				s.UUID.Reset()
+				if err := s.UUID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsIdentityV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsIdentityV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsIdentityV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsJobDetailsV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsJobDetailsV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Type.Set {
+			e.FieldStart("type")
+			s.Type.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.TrackingId.Set {
+			e.FieldStart("trackingId")
+			s.TrackingId.Encode(e)
+		}
+	}
+	{
+		if s.ErrorMessage.Set {
+			e.FieldStart("errorMessage")
+			s.ErrorMessage.Encode(e)
+		}
+	}
+	{
+		if s.CorrelationId.Set {
+			e.FieldStart("correlationId")
+			s.CorrelationId.Encode(e)
+		}
+	}
+	{
+		if s.RequestId.Set {
+			e.FieldStart("requestId")
+			s.RequestId.Encode(e)
+		}
+	}
+	{
+		if s.ResourceUuid.Set {
+			e.FieldStart("resourceUuid")
+			s.ResourceUuid.Encode(e)
+		}
+	}
+	{
+		if s.ResourceName.Set {
+			e.FieldStart("resourceName")
+			s.ResourceName.Encode(e)
+		}
+	}
+	{
+		if s.PoolUuid.Set {
+			e.FieldStart("poolUuid")
+			s.PoolUuid.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowId.Set {
+			e.FieldStart("workflowId")
+			s.WorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.IsAdminJob.Set {
+			e.FieldStart("isAdminJob")
+			s.IsAdminJob.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.ScheduledAt.Set {
+			e.FieldStart("scheduledAt")
+			s.ScheduledAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsJobDetailsV1 = [17]string{
+	0:  "uuid",
+	1:  "type",
+	2:  "state",
+	3:  "trackingId",
+	4:  "errorMessage",
+	5:  "correlationId",
+	6:  "requestId",
+	7:  "resourceUuid",
+	8:  "resourceName",
+	9:  "poolUuid",
+	10: "workflowId",
+	11: "isAdminJob",
+	12: "projectNumber",
+	13: "scheduledAt",
+	14: "createdAt",
+	15: "updatedAt",
+	16: "deletedAt",
+}
+
+// Decode decodes OpsJobDetailsV1 from json.
+func (s *OpsJobDetailsV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsJobDetailsV1 to nil")
+	}
+	var requiredBitSet [3]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "uuid":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "type":
+			if err := func() error {
+				s.Type.Reset()
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "trackingId":
+			if err := func() error {
+				s.TrackingId.Reset()
+				if err := s.TrackingId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"trackingId\"")
+			}
+		case "errorMessage":
+			if err := func() error {
+				s.ErrorMessage.Reset()
+				if err := s.ErrorMessage.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"errorMessage\"")
+			}
+		case "correlationId":
+			if err := func() error {
+				s.CorrelationId.Reset()
+				if err := s.CorrelationId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"correlationId\"")
+			}
+		case "requestId":
+			if err := func() error {
+				s.RequestId.Reset()
+				if err := s.RequestId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"requestId\"")
+			}
+		case "resourceUuid":
+			if err := func() error {
+				s.ResourceUuid.Reset()
+				if err := s.ResourceUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceUuid\"")
+			}
+		case "resourceName":
+			if err := func() error {
+				s.ResourceName.Reset()
+				if err := s.ResourceName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceName\"")
+			}
+		case "poolUuid":
+			if err := func() error {
+				s.PoolUuid.Reset()
+				if err := s.PoolUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"poolUuid\"")
+			}
+		case "workflowId":
+			if err := func() error {
+				s.WorkflowId.Reset()
+				if err := s.WorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "isAdminJob":
+			if err := func() error {
+				s.IsAdminJob.Reset()
+				if err := s.IsAdminJob.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isAdminJob\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "scheduledAt":
+			if err := func() error {
+				s.ScheduledAt.Reset()
+				if err := s.ScheduledAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scheduledAt\"")
+			}
+		case "createdAt":
+			requiredBitSet[1] |= 1 << 6
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[1] |= 1 << 7
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[2] |= 1 << 0
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsJobDetailsV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [3]uint8{
+		0b00000001,
+		0b11000000,
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsJobDetailsV1) {
+					name = jsonFieldsNameOfOpsJobDetailsV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsJobDetailsV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsJobDetailsV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsJobTemporalV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsJobTemporalV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("enrichmentStatus")
+		s.EnrichmentStatus.Encode(e)
+	}
+	{
+		if s.Reason.Set {
+			e.FieldStart("reason")
+			s.Reason.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowId.Set {
+			e.FieldStart("workflowId")
+			s.WorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.RunId.Set {
+			e.FieldStart("runId")
+			s.RunId.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowType.Set {
+			e.FieldStart("workflowType")
+			s.WorkflowType.Encode(e)
+		}
+	}
+	{
+		if s.TaskQueue.Set {
+			e.FieldStart("taskQueue")
+			s.TaskQueue.Encode(e)
+		}
+	}
+	{
+		if s.Status.Set {
+			e.FieldStart("status")
+			s.Status.Encode(e)
+		}
+	}
+	{
+		if s.StartTime.Set {
+			e.FieldStart("startTime")
+			s.StartTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.ExecutionTime.Set {
+			e.FieldStart("executionTime")
+			s.ExecutionTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.CloseTime.Set {
+			e.FieldStart("closeTime")
+			s.CloseTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.HistoryLength.Set {
+			e.FieldStart("historyLength")
+			s.HistoryLength.Encode(e)
+		}
+	}
+	{
+		if s.HistorySizeBytes.Set {
+			e.FieldStart("historySizeBytes")
+			s.HistorySizeBytes.Encode(e)
+		}
+	}
+	{
+		if s.StateTransitionCount.Set {
+			e.FieldStart("stateTransitionCount")
+			s.StateTransitionCount.Encode(e)
+		}
+	}
+	{
+		if s.ExecutionDurationSeconds.Set {
+			e.FieldStart("executionDurationSeconds")
+			s.ExecutionDurationSeconds.Encode(e)
+		}
+	}
+	{
+		if s.FirstRunId.Set {
+			e.FieldStart("firstRunId")
+			s.FirstRunId.Encode(e)
+		}
+	}
+	{
+		if s.ParentWorkflowId.Set {
+			e.FieldStart("parentWorkflowId")
+			s.ParentWorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.ParentRunId.Set {
+			e.FieldStart("parentRunId")
+			s.ParentRunId.Encode(e)
+		}
+	}
+	{
+		if s.RootWorkflowId.Set {
+			e.FieldStart("rootWorkflowId")
+			s.RootWorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.RootRunId.Set {
+			e.FieldStart("rootRunId")
+			s.RootRunId.Encode(e)
+		}
+	}
+	{
+		if s.WorkerDeploymentName.Set {
+			e.FieldStart("workerDeploymentName")
+			s.WorkerDeploymentName.Encode(e)
+		}
+	}
+	{
+		if s.BuildId.Set {
+			e.FieldStart("buildId")
+			s.BuildId.Encode(e)
+		}
+	}
+	{
+		if s.VersioningBehavior.Set {
+			e.FieldStart("versioningBehavior")
+			s.VersioningBehavior.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowExecutionTimeoutSeconds.Set {
+			e.FieldStart("workflowExecutionTimeoutSeconds")
+			s.WorkflowExecutionTimeoutSeconds.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowRunTimeoutSeconds.Set {
+			e.FieldStart("workflowRunTimeoutSeconds")
+			s.WorkflowRunTimeoutSeconds.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowTaskTimeoutSeconds.Set {
+			e.FieldStart("workflowTaskTimeoutSeconds")
+			s.WorkflowTaskTimeoutSeconds.Encode(e)
+		}
+	}
+	{
+		if s.ExecutionExpirationTime.Set {
+			e.FieldStart("executionExpirationTime")
+			s.ExecutionExpirationTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.RunExpirationTime.Set {
+			e.FieldStart("runExpirationTime")
+			s.RunExpirationTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.CancelRequested.Set {
+			e.FieldStart("cancelRequested")
+			s.CancelRequested.Encode(e)
+		}
+	}
+	{
+		if s.LastResetTime.Set {
+			e.FieldStart("lastResetTime")
+			s.LastResetTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.PendingWorkflowTask.Set {
+			e.FieldStart("pendingWorkflowTask")
+			s.PendingWorkflowTask.Encode(e)
+		}
+	}
+	{
+		if s.PendingActivities != nil {
+			e.FieldStart("pendingActivities")
+			e.ArrStart()
+			for _, elem := range s.PendingActivities {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.PendingChildren != nil {
+			e.FieldStart("pendingChildren")
+			e.ArrStart()
+			for _, elem := range s.PendingChildren {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.StateMismatch.Set {
+			e.FieldStart("stateMismatch")
+			s.StateMismatch.Encode(e)
+		}
+	}
+	{
+		if s.SequenceWorkflowId.Set {
+			e.FieldStart("sequenceWorkflowId")
+			s.SequenceWorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.SequenceWorkflowStatus.Set {
+			e.FieldStart("sequenceWorkflowStatus")
+			s.SequenceWorkflowStatus.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsJobTemporalV1 = [35]string{
+	0:  "enrichmentStatus",
+	1:  "reason",
+	2:  "workflowId",
+	3:  "runId",
+	4:  "workflowType",
+	5:  "taskQueue",
+	6:  "status",
+	7:  "startTime",
+	8:  "executionTime",
+	9:  "closeTime",
+	10: "historyLength",
+	11: "historySizeBytes",
+	12: "stateTransitionCount",
+	13: "executionDurationSeconds",
+	14: "firstRunId",
+	15: "parentWorkflowId",
+	16: "parentRunId",
+	17: "rootWorkflowId",
+	18: "rootRunId",
+	19: "workerDeploymentName",
+	20: "buildId",
+	21: "versioningBehavior",
+	22: "workflowExecutionTimeoutSeconds",
+	23: "workflowRunTimeoutSeconds",
+	24: "workflowTaskTimeoutSeconds",
+	25: "executionExpirationTime",
+	26: "runExpirationTime",
+	27: "cancelRequested",
+	28: "lastResetTime",
+	29: "pendingWorkflowTask",
+	30: "pendingActivities",
+	31: "pendingChildren",
+	32: "stateMismatch",
+	33: "sequenceWorkflowId",
+	34: "sequenceWorkflowStatus",
+}
+
+// Decode decodes OpsJobTemporalV1 from json.
+func (s *OpsJobTemporalV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsJobTemporalV1 to nil")
+	}
+	var requiredBitSet [5]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "enrichmentStatus":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.EnrichmentStatus.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"enrichmentStatus\"")
+			}
+		case "reason":
+			if err := func() error {
+				s.Reason.Reset()
+				if err := s.Reason.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"reason\"")
+			}
+		case "workflowId":
+			if err := func() error {
+				s.WorkflowId.Reset()
+				if err := s.WorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "runId":
+			if err := func() error {
+				s.RunId.Reset()
+				if err := s.RunId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"runId\"")
+			}
+		case "workflowType":
+			if err := func() error {
+				s.WorkflowType.Reset()
+				if err := s.WorkflowType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowType\"")
+			}
+		case "taskQueue":
+			if err := func() error {
+				s.TaskQueue.Reset()
+				if err := s.TaskQueue.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"taskQueue\"")
+			}
+		case "status":
+			if err := func() error {
+				s.Status.Reset()
+				if err := s.Status.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"status\"")
+			}
+		case "startTime":
+			if err := func() error {
+				s.StartTime.Reset()
+				if err := s.StartTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"startTime\"")
+			}
+		case "executionTime":
+			if err := func() error {
+				s.ExecutionTime.Reset()
+				if err := s.ExecutionTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"executionTime\"")
+			}
+		case "closeTime":
+			if err := func() error {
+				s.CloseTime.Reset()
+				if err := s.CloseTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"closeTime\"")
+			}
+		case "historyLength":
+			if err := func() error {
+				s.HistoryLength.Reset()
+				if err := s.HistoryLength.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"historyLength\"")
+			}
+		case "historySizeBytes":
+			if err := func() error {
+				s.HistorySizeBytes.Reset()
+				if err := s.HistorySizeBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"historySizeBytes\"")
+			}
+		case "stateTransitionCount":
+			if err := func() error {
+				s.StateTransitionCount.Reset()
+				if err := s.StateTransitionCount.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateTransitionCount\"")
+			}
+		case "executionDurationSeconds":
+			if err := func() error {
+				s.ExecutionDurationSeconds.Reset()
+				if err := s.ExecutionDurationSeconds.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"executionDurationSeconds\"")
+			}
+		case "firstRunId":
+			if err := func() error {
+				s.FirstRunId.Reset()
+				if err := s.FirstRunId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"firstRunId\"")
+			}
+		case "parentWorkflowId":
+			if err := func() error {
+				s.ParentWorkflowId.Reset()
+				if err := s.ParentWorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parentWorkflowId\"")
+			}
+		case "parentRunId":
+			if err := func() error {
+				s.ParentRunId.Reset()
+				if err := s.ParentRunId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parentRunId\"")
+			}
+		case "rootWorkflowId":
+			if err := func() error {
+				s.RootWorkflowId.Reset()
+				if err := s.RootWorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rootWorkflowId\"")
+			}
+		case "rootRunId":
+			if err := func() error {
+				s.RootRunId.Reset()
+				if err := s.RootRunId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rootRunId\"")
+			}
+		case "workerDeploymentName":
+			if err := func() error {
+				s.WorkerDeploymentName.Reset()
+				if err := s.WorkerDeploymentName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workerDeploymentName\"")
+			}
+		case "buildId":
+			if err := func() error {
+				s.BuildId.Reset()
+				if err := s.BuildId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"buildId\"")
+			}
+		case "versioningBehavior":
+			if err := func() error {
+				s.VersioningBehavior.Reset()
+				if err := s.VersioningBehavior.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"versioningBehavior\"")
+			}
+		case "workflowExecutionTimeoutSeconds":
+			if err := func() error {
+				s.WorkflowExecutionTimeoutSeconds.Reset()
+				if err := s.WorkflowExecutionTimeoutSeconds.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowExecutionTimeoutSeconds\"")
+			}
+		case "workflowRunTimeoutSeconds":
+			if err := func() error {
+				s.WorkflowRunTimeoutSeconds.Reset()
+				if err := s.WorkflowRunTimeoutSeconds.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowRunTimeoutSeconds\"")
+			}
+		case "workflowTaskTimeoutSeconds":
+			if err := func() error {
+				s.WorkflowTaskTimeoutSeconds.Reset()
+				if err := s.WorkflowTaskTimeoutSeconds.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowTaskTimeoutSeconds\"")
+			}
+		case "executionExpirationTime":
+			if err := func() error {
+				s.ExecutionExpirationTime.Reset()
+				if err := s.ExecutionExpirationTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"executionExpirationTime\"")
+			}
+		case "runExpirationTime":
+			if err := func() error {
+				s.RunExpirationTime.Reset()
+				if err := s.RunExpirationTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"runExpirationTime\"")
+			}
+		case "cancelRequested":
+			if err := func() error {
+				s.CancelRequested.Reset()
+				if err := s.CancelRequested.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"cancelRequested\"")
+			}
+		case "lastResetTime":
+			if err := func() error {
+				s.LastResetTime.Reset()
+				if err := s.LastResetTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastResetTime\"")
+			}
+		case "pendingWorkflowTask":
+			if err := func() error {
+				s.PendingWorkflowTask.Reset()
+				if err := s.PendingWorkflowTask.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pendingWorkflowTask\"")
+			}
+		case "pendingActivities":
+			if err := func() error {
+				s.PendingActivities = make([]OpsPendingActivityV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsPendingActivityV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.PendingActivities = append(s.PendingActivities, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pendingActivities\"")
+			}
+		case "pendingChildren":
+			if err := func() error {
+				s.PendingChildren = make([]OpsPendingChildV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsPendingChildV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.PendingChildren = append(s.PendingChildren, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pendingChildren\"")
+			}
+		case "stateMismatch":
+			if err := func() error {
+				s.StateMismatch.Reset()
+				if err := s.StateMismatch.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateMismatch\"")
+			}
+		case "sequenceWorkflowId":
+			if err := func() error {
+				s.SequenceWorkflowId.Reset()
+				if err := s.SequenceWorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sequenceWorkflowId\"")
+			}
+		case "sequenceWorkflowStatus":
+			if err := func() error {
+				s.SequenceWorkflowStatus.Reset()
+				if err := s.SequenceWorkflowStatus.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sequenceWorkflowStatus\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsJobTemporalV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [5]uint8{
+		0b00000001,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsJobTemporalV1) {
+					name = jsonFieldsNameOfOpsJobTemporalV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsJobTemporalV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsJobTemporalV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsJobTemporalV1EnrichmentStatus as json.
+func (s OpsJobTemporalV1EnrichmentStatus) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes OpsJobTemporalV1EnrichmentStatus from json.
+func (s *OpsJobTemporalV1EnrichmentStatus) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsJobTemporalV1EnrichmentStatus to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch OpsJobTemporalV1EnrichmentStatus(v) {
+	case OpsJobTemporalV1EnrichmentStatusCOMPLETE:
+		*s = OpsJobTemporalV1EnrichmentStatusCOMPLETE
+	case OpsJobTemporalV1EnrichmentStatusSKIPPED:
+		*s = OpsJobTemporalV1EnrichmentStatusSKIPPED
+	case OpsJobTemporalV1EnrichmentStatusNOTFOUND:
+		*s = OpsJobTemporalV1EnrichmentStatusNOTFOUND
+	case OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER:
+		*s = OpsJobTemporalV1EnrichmentStatusQUEUEDINSEQUENCER
+	case OpsJobTemporalV1EnrichmentStatusUNAVAILABLE:
+		*s = OpsJobTemporalV1EnrichmentStatusUNAVAILABLE
+	default:
+		*s = OpsJobTemporalV1EnrichmentStatus(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsJobTemporalV1EnrichmentStatus) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsJobTemporalV1EnrichmentStatus) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsJobV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsJobV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("job")
+		s.Job.Encode(e)
+	}
+	{
+		e.FieldStart("temporal")
+		s.Temporal.Encode(e)
+	}
+}
+
+var jsonFieldsNameOfOpsJobV1 = [4]string{
+	0: "resourceType",
+	1: "source",
+	2: "job",
+	3: "temporal",
+}
+
+// Decode decodes OpsJobV1 from json.
+func (s *OpsJobV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsJobV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "job":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				if err := s.Job.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"job\"")
+			}
+		case "temporal":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				if err := s.Temporal.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"temporal\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsJobV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00001111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsJobV1) {
+					name = jsonFieldsNameOfOpsJobV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsJobV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsJobV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsListFiltersV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsListFiltersV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.CorrelationId.Set {
+			e.FieldStart("correlationId")
+			s.CorrelationId.Encode(e)
+		}
+	}
+	{
+		if s.Type.Set {
+			e.FieldStart("type")
+			s.Type.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsListFiltersV1 = [4]string{
+	0: "name",
+	1: "state",
+	2: "correlationId",
+	3: "type",
+}
+
+// Decode decodes OpsListFiltersV1 from json.
+func (s *OpsListFiltersV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsListFiltersV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "correlationId":
+			if err := func() error {
+				s.CorrelationId.Reset()
+				if err := s.CorrelationId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"correlationId\"")
+			}
+		case "type":
+			if err := func() error {
+				s.Type.Reset()
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsListFiltersV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsListFiltersV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsListFiltersV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsListResourcesRequestV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsListResourcesRequestV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		s.ResourceType.Encode(e)
+	}
+	{
+		if s.Parents != nil {
+			e.FieldStart("parents")
+			e.ArrStart()
+			for _, elem := range s.Parents {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.TimeFilters != nil {
+			e.FieldStart("timeFilters")
+			e.ArrStart()
+			for _, elem := range s.TimeFilters {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Filters.Set {
+			e.FieldStart("filters")
+			s.Filters.Encode(e)
+		}
+	}
+	{
+		if s.IncludeDeleted.Set {
+			e.FieldStart("includeDeleted")
+			s.IncludeDeleted.Encode(e)
+		}
+	}
+	{
+		if s.PageSize.Set {
+			e.FieldStart("pageSize")
+			s.PageSize.Encode(e)
+		}
+	}
+	{
+		if s.PageToken.Set {
+			e.FieldStart("pageToken")
+			s.PageToken.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsListResourcesRequestV1 = [7]string{
+	0: "resourceType",
+	1: "parents",
+	2: "timeFilters",
+	3: "filters",
+	4: "includeDeleted",
+	5: "pageSize",
+	6: "pageToken",
+}
+
+// Decode decodes OpsListResourcesRequestV1 from json.
+func (s *OpsListResourcesRequestV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsListResourcesRequestV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+	s.setDefaults()
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.ResourceType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "parents":
+			if err := func() error {
+				s.Parents = make([]OpsParentV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsParentV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Parents = append(s.Parents, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parents\"")
+			}
+		case "timeFilters":
+			if err := func() error {
+				s.TimeFilters = make([]OpsTimeFilterV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsTimeFilterV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.TimeFilters = append(s.TimeFilters, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"timeFilters\"")
+			}
+		case "filters":
+			if err := func() error {
+				s.Filters.Reset()
+				if err := s.Filters.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"filters\"")
+			}
+		case "includeDeleted":
+			if err := func() error {
+				s.IncludeDeleted.Reset()
+				if err := s.IncludeDeleted.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"includeDeleted\"")
+			}
+		case "pageSize":
+			if err := func() error {
+				s.PageSize.Reset()
+				if err := s.PageSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pageSize\"")
+			}
+		case "pageToken":
+			if err := func() error {
+				s.PageToken.Reset()
+				if err := s.PageToken.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"pageToken\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsListResourcesRequestV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsListResourcesRequestV1) {
+					name = jsonFieldsNameOfOpsListResourcesRequestV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsListResourcesRequestV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsListResourcesRequestV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsListResourcesResponseV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsListResourcesResponseV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resources")
+		e.ArrStart()
+		for _, elem := range s.Resources {
+			elem.Encode(e)
+		}
+		e.ArrEnd()
+	}
+	{
+		if s.NextPageToken.Set {
+			e.FieldStart("nextPageToken")
+			s.NextPageToken.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsListResourcesResponseV1 = [2]string{
+	0: "resources",
+	1: "nextPageToken",
+}
+
+// Decode decodes OpsListResourcesResponseV1 from json.
+func (s *OpsListResourcesResponseV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsListResourcesResponseV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resources":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				s.Resources = make([]OpsResourceV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsResourceV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Resources = append(s.Resources, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resources\"")
+			}
+		case "nextPageToken":
+			if err := func() error {
+				s.NextPageToken.Reset()
+				if err := s.NextPageToken.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nextPageToken\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsListResourcesResponseV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsListResourcesResponseV1) {
+					name = jsonFieldsNameOfOpsListResourcesResponseV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsListResourcesResponseV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsListResourcesResponseV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsParentTypeV1 as json.
+func (s OpsParentTypeV1) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes OpsParentTypeV1 from json.
+func (s *OpsParentTypeV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsParentTypeV1 to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch OpsParentTypeV1(v) {
+	case OpsParentTypeV1Pool:
+		*s = OpsParentTypeV1Pool
+	case OpsParentTypeV1Volume:
+		*s = OpsParentTypeV1Volume
+	case OpsParentTypeV1Svm:
+		*s = OpsParentTypeV1Svm
+	case OpsParentTypeV1VolumePerformanceGroup:
+		*s = OpsParentTypeV1VolumePerformanceGroup
+	case OpsParentTypeV1BackupVault:
+		*s = OpsParentTypeV1BackupVault
+	case OpsParentTypeV1BackupPolicy:
+		*s = OpsParentTypeV1BackupPolicy
+	case OpsParentTypeV1Cmek:
+		*s = OpsParentTypeV1Cmek
+	case OpsParentTypeV1ActiveDirectory:
+		*s = OpsParentTypeV1ActiveDirectory
+	case OpsParentTypeV1Host:
+		*s = OpsParentTypeV1Host
+	case OpsParentTypeV1SourceVolume:
+		*s = OpsParentTypeV1SourceVolume
+	case OpsParentTypeV1DestinationVolume:
+		*s = OpsParentTypeV1DestinationVolume
+	case OpsParentTypeV1Resource:
+		*s = OpsParentTypeV1Resource
+	default:
+		*s = OpsParentTypeV1(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsParentTypeV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsParentTypeV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsParentV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsParentV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("type")
+		s.Type.Encode(e)
+	}
+	{
+		e.FieldStart("id")
+		e.Str(s.ID)
+	}
+}
+
+var jsonFieldsNameOfOpsParentV1 = [2]string{
+	0: "type",
+	1: "id",
+}
+
+// Decode decodes OpsParentV1 from json.
+func (s *OpsParentV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsParentV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "type":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		case "id":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.ID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"id\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsParentV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsParentV1) {
+					name = jsonFieldsNameOfOpsParentV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsParentV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsParentV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsPendingActivityV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsPendingActivityV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.ActivityId.Set {
+			e.FieldStart("activityId")
+			s.ActivityId.Encode(e)
+		}
+	}
+	{
+		if s.ActivityType.Set {
+			e.FieldStart("activityType")
+			s.ActivityType.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.Attempt.Set {
+			e.FieldStart("attempt")
+			s.Attempt.Encode(e)
+		}
+	}
+	{
+		if s.MaximumAttempts.Set {
+			e.FieldStart("maximumAttempts")
+			s.MaximumAttempts.Encode(e)
+		}
+	}
+	{
+		if s.ScheduledTime.Set {
+			e.FieldStart("scheduledTime")
+			s.ScheduledTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.LastStartedTime.Set {
+			e.FieldStart("lastStartedTime")
+			s.LastStartedTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.LastHeartbeatTime.Set {
+			e.FieldStart("lastHeartbeatTime")
+			s.LastHeartbeatTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.LastAttemptCompleteTime.Set {
+			e.FieldStart("lastAttemptCompleteTime")
+			s.LastAttemptCompleteTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.NextAttemptScheduleTime.Set {
+			e.FieldStart("nextAttemptScheduleTime")
+			s.NextAttemptScheduleTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.CurrentRetryIntervalSeconds.Set {
+			e.FieldStart("currentRetryIntervalSeconds")
+			s.CurrentRetryIntervalSeconds.Encode(e)
+		}
+	}
+	{
+		if s.ExpirationTime.Set {
+			e.FieldStart("expirationTime")
+			s.ExpirationTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.Paused.Set {
+			e.FieldStart("paused")
+			s.Paused.Encode(e)
+		}
+	}
+	{
+		if s.LastWorkerIdentity.Set {
+			e.FieldStart("lastWorkerIdentity")
+			s.LastWorkerIdentity.Encode(e)
+		}
+	}
+	{
+		if s.LastFailureType.Set {
+			e.FieldStart("lastFailureType")
+			s.LastFailureType.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsPendingActivityV1 = [15]string{
+	0:  "activityId",
+	1:  "activityType",
+	2:  "state",
+	3:  "attempt",
+	4:  "maximumAttempts",
+	5:  "scheduledTime",
+	6:  "lastStartedTime",
+	7:  "lastHeartbeatTime",
+	8:  "lastAttemptCompleteTime",
+	9:  "nextAttemptScheduleTime",
+	10: "currentRetryIntervalSeconds",
+	11: "expirationTime",
+	12: "paused",
+	13: "lastWorkerIdentity",
+	14: "lastFailureType",
+}
+
+// Decode decodes OpsPendingActivityV1 from json.
+func (s *OpsPendingActivityV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsPendingActivityV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "activityId":
+			if err := func() error {
+				s.ActivityId.Reset()
+				if err := s.ActivityId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"activityId\"")
+			}
+		case "activityType":
+			if err := func() error {
+				s.ActivityType.Reset()
+				if err := s.ActivityType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"activityType\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "attempt":
+			if err := func() error {
+				s.Attempt.Reset()
+				if err := s.Attempt.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"attempt\"")
+			}
+		case "maximumAttempts":
+			if err := func() error {
+				s.MaximumAttempts.Reset()
+				if err := s.MaximumAttempts.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"maximumAttempts\"")
+			}
+		case "scheduledTime":
+			if err := func() error {
+				s.ScheduledTime.Reset()
+				if err := s.ScheduledTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scheduledTime\"")
+			}
+		case "lastStartedTime":
+			if err := func() error {
+				s.LastStartedTime.Reset()
+				if err := s.LastStartedTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastStartedTime\"")
+			}
+		case "lastHeartbeatTime":
+			if err := func() error {
+				s.LastHeartbeatTime.Reset()
+				if err := s.LastHeartbeatTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastHeartbeatTime\"")
+			}
+		case "lastAttemptCompleteTime":
+			if err := func() error {
+				s.LastAttemptCompleteTime.Reset()
+				if err := s.LastAttemptCompleteTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastAttemptCompleteTime\"")
+			}
+		case "nextAttemptScheduleTime":
+			if err := func() error {
+				s.NextAttemptScheduleTime.Reset()
+				if err := s.NextAttemptScheduleTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"nextAttemptScheduleTime\"")
+			}
+		case "currentRetryIntervalSeconds":
+			if err := func() error {
+				s.CurrentRetryIntervalSeconds.Reset()
+				if err := s.CurrentRetryIntervalSeconds.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"currentRetryIntervalSeconds\"")
+			}
+		case "expirationTime":
+			if err := func() error {
+				s.ExpirationTime.Reset()
+				if err := s.ExpirationTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expirationTime\"")
+			}
+		case "paused":
+			if err := func() error {
+				s.Paused.Reset()
+				if err := s.Paused.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"paused\"")
+			}
+		case "lastWorkerIdentity":
+			if err := func() error {
+				s.LastWorkerIdentity.Reset()
+				if err := s.LastWorkerIdentity.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastWorkerIdentity\"")
+			}
+		case "lastFailureType":
+			if err := func() error {
+				s.LastFailureType.Reset()
+				if err := s.LastFailureType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastFailureType\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsPendingActivityV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsPendingActivityV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsPendingActivityV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsPendingChildV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsPendingChildV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.WorkflowId.Set {
+			e.FieldStart("workflowId")
+			s.WorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.RunId.Set {
+			e.FieldStart("runId")
+			s.RunId.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowType.Set {
+			e.FieldStart("workflowType")
+			s.WorkflowType.Encode(e)
+		}
+	}
+	{
+		if s.ParentClosePolicy.Set {
+			e.FieldStart("parentClosePolicy")
+			s.ParentClosePolicy.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsPendingChildV1 = [4]string{
+	0: "workflowId",
+	1: "runId",
+	2: "workflowType",
+	3: "parentClosePolicy",
+}
+
+// Decode decodes OpsPendingChildV1 from json.
+func (s *OpsPendingChildV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsPendingChildV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "workflowId":
+			if err := func() error {
+				s.WorkflowId.Reset()
+				if err := s.WorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "runId":
+			if err := func() error {
+				s.RunId.Reset()
+				if err := s.RunId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"runId\"")
+			}
+		case "workflowType":
+			if err := func() error {
+				s.WorkflowType.Reset()
+				if err := s.WorkflowType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowType\"")
+			}
+		case "parentClosePolicy":
+			if err := func() error {
+				s.ParentClosePolicy.Reset()
+				if err := s.ParentClosePolicy.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parentClosePolicy\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsPendingChildV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsPendingChildV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsPendingChildV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsPendingWorkflowTaskV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsPendingWorkflowTaskV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.Attempt.Set {
+			e.FieldStart("attempt")
+			s.Attempt.Encode(e)
+		}
+	}
+	{
+		if s.ScheduledTime.Set {
+			e.FieldStart("scheduledTime")
+			s.ScheduledTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.OriginalScheduledTime.Set {
+			e.FieldStart("originalScheduledTime")
+			s.OriginalScheduledTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.StartedTime.Set {
+			e.FieldStart("startedTime")
+			s.StartedTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsPendingWorkflowTaskV1 = [5]string{
+	0: "state",
+	1: "attempt",
+	2: "scheduledTime",
+	3: "originalScheduledTime",
+	4: "startedTime",
+}
+
+// Decode decodes OpsPendingWorkflowTaskV1 from json.
+func (s *OpsPendingWorkflowTaskV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsPendingWorkflowTaskV1 to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "attempt":
+			if err := func() error {
+				s.Attempt.Reset()
+				if err := s.Attempt.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"attempt\"")
+			}
+		case "scheduledTime":
+			if err := func() error {
+				s.ScheduledTime.Reset()
+				if err := s.ScheduledTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scheduledTime\"")
+			}
+		case "originalScheduledTime":
+			if err := func() error {
+				s.OriginalScheduledTime.Reset()
+				if err := s.OriginalScheduledTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"originalScheduledTime\"")
+			}
+		case "startedTime":
+			if err := func() error {
+				s.StartedTime.Reset()
+				if err := s.StartedTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"startedTime\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsPendingWorkflowTaskV1")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsPendingWorkflowTaskV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsPendingWorkflowTaskV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsPoolCertificateRotationV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsPoolCertificateRotationV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.ActiveCertificateRotatedAt.Set {
+			e.FieldStart("activeCertificateRotatedAt")
+			s.ActiveCertificateRotatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		e.FieldStart("rotationStaged")
+		e.Bool(s.RotationStaged)
+	}
+	{
+		if s.StagedCertificateCreatedAt.Set {
+			e.FieldStart("stagedCertificateCreatedAt")
+			s.StagedCertificateCreatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.CaUri.Set {
+			e.FieldStart("caUri")
+			s.CaUri.Encode(e)
+		}
+	}
+	{
+		if s.StagedCaUri.Set {
+			e.FieldStart("stagedCaUri")
+			s.StagedCaUri.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsPoolCertificateRotationV1 = [5]string{
+	0: "activeCertificateRotatedAt",
+	1: "rotationStaged",
+	2: "stagedCertificateCreatedAt",
+	3: "caUri",
+	4: "stagedCaUri",
+}
+
+// Decode decodes OpsPoolCertificateRotationV1 from json.
+func (s *OpsPoolCertificateRotationV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsPoolCertificateRotationV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "activeCertificateRotatedAt":
+			if err := func() error {
+				s.ActiveCertificateRotatedAt.Reset()
+				if err := s.ActiveCertificateRotatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"activeCertificateRotatedAt\"")
+			}
+		case "rotationStaged":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Bool()
+				s.RotationStaged = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rotationStaged\"")
+			}
+		case "stagedCertificateCreatedAt":
+			if err := func() error {
+				s.StagedCertificateCreatedAt.Reset()
+				if err := s.StagedCertificateCreatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stagedCertificateCreatedAt\"")
+			}
+		case "caUri":
+			if err := func() error {
+				s.CaUri.Reset()
+				if err := s.CaUri.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"caUri\"")
+			}
+		case "stagedCaUri":
+			if err := func() error {
+				s.StagedCaUri.Reset()
+				if err := s.StagedCaUri.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stagedCaUri\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsPoolCertificateRotationV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000010,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsPoolCertificateRotationV1) {
+					name = jsonFieldsNameOfOpsPoolCertificateRotationV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsPoolCertificateRotationV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsPoolCertificateRotationV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsPoolV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsPoolV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.ServiceLevel.Set {
+			e.FieldStart("serviceLevel")
+			s.ServiceLevel.Encode(e)
+		}
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("sizeInBytes")
+			s.SizeInBytes.Encode(e)
+		}
+	}
+	{
+		if s.UsedBytes.Set {
+			e.FieldStart("usedBytes")
+			s.UsedBytes.Encode(e)
+		}
+	}
+	{
+		if s.Network.Set {
+			e.FieldStart("network")
+			s.Network.Encode(e)
+		}
+	}
+	{
+		if s.AllowAutoTiering.Set {
+			e.FieldStart("allowAutoTiering")
+			s.AllowAutoTiering.Encode(e)
+		}
+	}
+	{
+		if s.QosType.Set {
+			e.FieldStart("qosType")
+			s.QosType.Encode(e)
+		}
+	}
+	{
+		if s.DeploymentName.Set {
+			e.FieldStart("deploymentName")
+			s.DeploymentName.Encode(e)
+		}
+	}
+	{
+		if s.HostUuid.Set {
+			e.FieldStart("hostUuid")
+			s.HostUuid.Encode(e)
+		}
+	}
+	{
+		if s.KmsConfigUuid.Set {
+			e.FieldStart("kmsConfigUuid")
+			s.KmsConfigUuid.Encode(e)
+		}
+	}
+	{
+		if s.ActiveDirectoryUuid.Set {
+			e.FieldStart("activeDirectoryUuid")
+			s.ActiveDirectoryUuid.Encode(e)
+		}
+	}
+	{
+		if s.ApiAccessMode.Set {
+			e.FieldStart("apiAccessMode")
+			s.ApiAccessMode.Encode(e)
+		}
+	}
+	{
+		if s.LargeCapacity.Set {
+			e.FieldStart("largeCapacity")
+			s.LargeCapacity.Encode(e)
+		}
+	}
+	{
+		if s.IsPreview.Set {
+			e.FieldStart("isPreview")
+			s.IsPreview.Encode(e)
+		}
+	}
+	{
+		if s.SatisfiesZi.Set {
+			e.FieldStart("satisfiesZi")
+			s.SatisfiesZi.Encode(e)
+		}
+	}
+	{
+		if s.SatisfiesZs.Set {
+			e.FieldStart("satisfiesZs")
+			s.SatisfiesZs.Encode(e)
+		}
+	}
+	{
+		if s.PrimaryZone.Set {
+			e.FieldStart("primaryZone")
+			s.PrimaryZone.Encode(e)
+		}
+	}
+	{
+		if s.SecondaryZone.Set {
+			e.FieldStart("secondaryZone")
+			s.SecondaryZone.Encode(e)
+		}
+	}
+	{
+		if s.IsRegionalHa.Set {
+			e.FieldStart("isRegionalHa")
+			s.IsRegionalHa.Encode(e)
+		}
+	}
+	{
+		if s.IsTrueZonal.Set {
+			e.FieldStart("isTrueZonal")
+			s.IsTrueZonal.Encode(e)
+		}
+	}
+	{
+		if s.ThroughputMibps.Set {
+			e.FieldStart("throughputMibps")
+			s.ThroughputMibps.Encode(e)
+		}
+	}
+	{
+		if s.Iops.Set {
+			e.FieldStart("iops")
+			s.Iops.Encode(e)
+		}
+	}
+	{
+		if s.WorkflowId.Set {
+			e.FieldStart("workflowId")
+			s.WorkflowId.Encode(e)
+		}
+	}
+	{
+		if s.AuthType.Set {
+			e.FieldStart("authType")
+			s.AuthType.Encode(e)
+		}
+	}
+	{
+		if s.CredentialConfigured.Set {
+			e.FieldStart("credentialConfigured")
+			s.CredentialConfigured.Encode(e)
+		}
+	}
+	{
+		if s.CertificateRotation.Set {
+			e.FieldStart("certificateRotation")
+			s.CertificateRotation.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsPoolV1 = [37]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "serviceLevel",
+	10: "sizeInBytes",
+	11: "usedBytes",
+	12: "network",
+	13: "allowAutoTiering",
+	14: "qosType",
+	15: "deploymentName",
+	16: "hostUuid",
+	17: "kmsConfigUuid",
+	18: "activeDirectoryUuid",
+	19: "apiAccessMode",
+	20: "largeCapacity",
+	21: "isPreview",
+	22: "satisfiesZi",
+	23: "satisfiesZs",
+	24: "primaryZone",
+	25: "secondaryZone",
+	26: "isRegionalHa",
+	27: "isTrueZonal",
+	28: "throughputMibps",
+	29: "iops",
+	30: "workflowId",
+	31: "authType",
+	32: "credentialConfigured",
+	33: "certificateRotation",
+	34: "createdAt",
+	35: "updatedAt",
+	36: "deletedAt",
+}
+
+// Decode decodes OpsPoolV1 from json.
+func (s *OpsPoolV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsPoolV1 to nil")
+	}
+	var requiredBitSet [5]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "serviceLevel":
+			if err := func() error {
+				s.ServiceLevel.Reset()
+				if err := s.ServiceLevel.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"serviceLevel\"")
+			}
+		case "sizeInBytes":
+			if err := func() error {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sizeInBytes\"")
+			}
+		case "usedBytes":
+			if err := func() error {
+				s.UsedBytes.Reset()
+				if err := s.UsedBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"usedBytes\"")
+			}
+		case "network":
+			if err := func() error {
+				s.Network.Reset()
+				if err := s.Network.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"network\"")
+			}
+		case "allowAutoTiering":
+			if err := func() error {
+				s.AllowAutoTiering.Reset()
+				if err := s.AllowAutoTiering.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"allowAutoTiering\"")
+			}
+		case "qosType":
+			if err := func() error {
+				s.QosType.Reset()
+				if err := s.QosType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"qosType\"")
+			}
+		case "deploymentName":
+			if err := func() error {
+				s.DeploymentName.Reset()
+				if err := s.DeploymentName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deploymentName\"")
+			}
+		case "hostUuid":
+			if err := func() error {
+				s.HostUuid.Reset()
+				if err := s.HostUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hostUuid\"")
+			}
+		case "kmsConfigUuid":
+			if err := func() error {
+				s.KmsConfigUuid.Reset()
+				if err := s.KmsConfigUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kmsConfigUuid\"")
+			}
+		case "activeDirectoryUuid":
+			if err := func() error {
+				s.ActiveDirectoryUuid.Reset()
+				if err := s.ActiveDirectoryUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"activeDirectoryUuid\"")
+			}
+		case "apiAccessMode":
+			if err := func() error {
+				s.ApiAccessMode.Reset()
+				if err := s.ApiAccessMode.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"apiAccessMode\"")
+			}
+		case "largeCapacity":
+			if err := func() error {
+				s.LargeCapacity.Reset()
+				if err := s.LargeCapacity.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"largeCapacity\"")
+			}
+		case "isPreview":
+			if err := func() error {
+				s.IsPreview.Reset()
+				if err := s.IsPreview.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isPreview\"")
+			}
+		case "satisfiesZi":
+			if err := func() error {
+				s.SatisfiesZi.Reset()
+				if err := s.SatisfiesZi.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"satisfiesZi\"")
+			}
+		case "satisfiesZs":
+			if err := func() error {
+				s.SatisfiesZs.Reset()
+				if err := s.SatisfiesZs.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"satisfiesZs\"")
+			}
+		case "primaryZone":
+			if err := func() error {
+				s.PrimaryZone.Reset()
+				if err := s.PrimaryZone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"primaryZone\"")
+			}
+		case "secondaryZone":
+			if err := func() error {
+				s.SecondaryZone.Reset()
+				if err := s.SecondaryZone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"secondaryZone\"")
+			}
+		case "isRegionalHa":
+			if err := func() error {
+				s.IsRegionalHa.Reset()
+				if err := s.IsRegionalHa.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isRegionalHa\"")
+			}
+		case "isTrueZonal":
+			if err := func() error {
+				s.IsTrueZonal.Reset()
+				if err := s.IsTrueZonal.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isTrueZonal\"")
+			}
+		case "throughputMibps":
+			if err := func() error {
+				s.ThroughputMibps.Reset()
+				if err := s.ThroughputMibps.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"throughputMibps\"")
+			}
+		case "iops":
+			if err := func() error {
+				s.Iops.Reset()
+				if err := s.Iops.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"iops\"")
+			}
+		case "workflowId":
+			if err := func() error {
+				s.WorkflowId.Reset()
+				if err := s.WorkflowId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"workflowId\"")
+			}
+		case "authType":
+			if err := func() error {
+				s.AuthType.Reset()
+				if err := s.AuthType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"authType\"")
+			}
+		case "credentialConfigured":
+			if err := func() error {
+				s.CredentialConfigured.Reset()
+				if err := s.CredentialConfigured.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"credentialConfigured\"")
+			}
+		case "certificateRotation":
+			if err := func() error {
+				s.CertificateRotation.Reset()
+				if err := s.CertificateRotation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"certificateRotation\"")
+			}
+		case "createdAt":
+			requiredBitSet[4] |= 1 << 2
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[4] |= 1 << 3
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[4] |= 1 << 4
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsPoolV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [5]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+		0b00011100,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsPoolV1) {
+					name = jsonFieldsNameOfOpsPoolV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsPoolV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsPoolV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsReplicationV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsReplicationV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.VolumeUuid.Set {
+			e.FieldStart("volumeUuid")
+			s.VolumeUuid.Encode(e)
+		}
+	}
+	{
+		if s.VolumeName.Set {
+			e.FieldStart("volumeName")
+			s.VolumeName.Encode(e)
+		}
+	}
+	{
+		if s.MirrorState.Set {
+			e.FieldStart("mirrorState")
+			s.MirrorState.Encode(e)
+		}
+	}
+	{
+		if s.RelationshipStatus.Set {
+			e.FieldStart("relationshipStatus")
+			s.RelationshipStatus.Encode(e)
+		}
+	}
+	{
+		if s.Healthy.Set {
+			e.FieldStart("healthy")
+			s.Healthy.Encode(e)
+		}
+	}
+	{
+		if s.UnhealthyReasonPresent.Set {
+			e.FieldStart("unhealthyReasonPresent")
+			s.UnhealthyReasonPresent.Encode(e)
+		}
+	}
+	{
+		if s.LastTransferErrorPresent.Set {
+			e.FieldStart("lastTransferErrorPresent")
+			s.LastTransferErrorPresent.Encode(e)
+		}
+	}
+	{
+		if s.LagTime.Set {
+			e.FieldStart("lagTime")
+			s.LagTime.Encode(e)
+		}
+	}
+	{
+		if s.TotalProgress.Set {
+			e.FieldStart("totalProgress")
+			s.TotalProgress.Encode(e)
+		}
+	}
+	{
+		if s.TotalTransferBytes.Set {
+			e.FieldStart("totalTransferBytes")
+			s.TotalTransferBytes.Encode(e)
+		}
+	}
+	{
+		if s.TotalTransferTimeSecs.Set {
+			e.FieldStart("totalTransferTimeSecs")
+			s.TotalTransferTimeSecs.Encode(e)
+		}
+	}
+	{
+		if s.LastTransferSize.Set {
+			e.FieldStart("lastTransferSize")
+			s.LastTransferSize.Encode(e)
+		}
+	}
+	{
+		if s.LastTransferDuration.Set {
+			e.FieldStart("lastTransferDuration")
+			s.LastTransferDuration.Encode(e)
+		}
+	}
+	{
+		if s.LastTransferEndTime.Set {
+			e.FieldStart("lastTransferEndTime")
+			s.LastTransferEndTime.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.ProgressLastUpdated.Set {
+			e.FieldStart("progressLastUpdated")
+			s.ProgressLastUpdated.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.LastUpdatedFromOntap.Set {
+			e.FieldStart("lastUpdatedFromOntap")
+			s.LastUpdatedFromOntap.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.EndpointType.Set {
+			e.FieldStart("endpointType")
+			s.EndpointType.Encode(e)
+		}
+	}
+	{
+		if s.ReplicationType.Set {
+			e.FieldStart("replicationType")
+			s.ReplicationType.Encode(e)
+		}
+	}
+	{
+		if s.ReplicationSchedule.Set {
+			e.FieldStart("replicationSchedule")
+			s.ReplicationSchedule.Encode(e)
+		}
+	}
+	{
+		if s.SourcePoolUuid.Set {
+			e.FieldStart("sourcePoolUuid")
+			s.SourcePoolUuid.Encode(e)
+		}
+	}
+	{
+		if s.SourceVolumeUuid.Set {
+			e.FieldStart("sourceVolumeUuid")
+			s.SourceVolumeUuid.Encode(e)
+		}
+	}
+	{
+		if s.SourceVolumeName.Set {
+			e.FieldStart("sourceVolumeName")
+			s.SourceVolumeName.Encode(e)
+		}
+	}
+	{
+		if s.SourceSvmName.Set {
+			e.FieldStart("sourceSvmName")
+			s.SourceSvmName.Encode(e)
+		}
+	}
+	{
+		if s.SourceLocation.Set {
+			e.FieldStart("sourceLocation")
+			s.SourceLocation.Encode(e)
+		}
+	}
+	{
+		if s.DestinationPoolUuid.Set {
+			e.FieldStart("destinationPoolUuid")
+			s.DestinationPoolUuid.Encode(e)
+		}
+	}
+	{
+		if s.DestinationVolumeUuid.Set {
+			e.FieldStart("destinationVolumeUuid")
+			s.DestinationVolumeUuid.Encode(e)
+		}
+	}
+	{
+		if s.DestinationVolumeName.Set {
+			e.FieldStart("destinationVolumeName")
+			s.DestinationVolumeName.Encode(e)
+		}
+	}
+	{
+		if s.DestinationSvmName.Set {
+			e.FieldStart("destinationSvmName")
+			s.DestinationSvmName.Encode(e)
+		}
+	}
+	{
+		if s.DestinationLocation.Set {
+			e.FieldStart("destinationLocation")
+			s.DestinationLocation.Encode(e)
+		}
+	}
+	{
+		if s.ExternalUuid.Set {
+			e.FieldStart("externalUuid")
+			s.ExternalUuid.Encode(e)
+		}
+	}
+	{
+		if s.IsHybrid.Set {
+			e.FieldStart("isHybrid")
+			s.IsHybrid.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsReplicationV1 = [43]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "volumeUuid",
+	10: "volumeName",
+	11: "mirrorState",
+	12: "relationshipStatus",
+	13: "healthy",
+	14: "unhealthyReasonPresent",
+	15: "lastTransferErrorPresent",
+	16: "lagTime",
+	17: "totalProgress",
+	18: "totalTransferBytes",
+	19: "totalTransferTimeSecs",
+	20: "lastTransferSize",
+	21: "lastTransferDuration",
+	22: "lastTransferEndTime",
+	23: "progressLastUpdated",
+	24: "lastUpdatedFromOntap",
+	25: "endpointType",
+	26: "replicationType",
+	27: "replicationSchedule",
+	28: "sourcePoolUuid",
+	29: "sourceVolumeUuid",
+	30: "sourceVolumeName",
+	31: "sourceSvmName",
+	32: "sourceLocation",
+	33: "destinationPoolUuid",
+	34: "destinationVolumeUuid",
+	35: "destinationVolumeName",
+	36: "destinationSvmName",
+	37: "destinationLocation",
+	38: "externalUuid",
+	39: "isHybrid",
+	40: "createdAt",
+	41: "updatedAt",
+	42: "deletedAt",
+}
+
+// Decode decodes OpsReplicationV1 from json.
+func (s *OpsReplicationV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsReplicationV1 to nil")
+	}
+	var requiredBitSet [6]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "volumeUuid":
+			if err := func() error {
+				s.VolumeUuid.Reset()
+				if err := s.VolumeUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeUuid\"")
+			}
+		case "volumeName":
+			if err := func() error {
+				s.VolumeName.Reset()
+				if err := s.VolumeName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeName\"")
+			}
+		case "mirrorState":
+			if err := func() error {
+				s.MirrorState.Reset()
+				if err := s.MirrorState.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"mirrorState\"")
+			}
+		case "relationshipStatus":
+			if err := func() error {
+				s.RelationshipStatus.Reset()
+				if err := s.RelationshipStatus.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"relationshipStatus\"")
+			}
+		case "healthy":
+			if err := func() error {
+				s.Healthy.Reset()
+				if err := s.Healthy.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"healthy\"")
+			}
+		case "unhealthyReasonPresent":
+			if err := func() error {
+				s.UnhealthyReasonPresent.Reset()
+				if err := s.UnhealthyReasonPresent.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"unhealthyReasonPresent\"")
+			}
+		case "lastTransferErrorPresent":
+			if err := func() error {
+				s.LastTransferErrorPresent.Reset()
+				if err := s.LastTransferErrorPresent.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastTransferErrorPresent\"")
+			}
+		case "lagTime":
+			if err := func() error {
+				s.LagTime.Reset()
+				if err := s.LagTime.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lagTime\"")
+			}
+		case "totalProgress":
+			if err := func() error {
+				s.TotalProgress.Reset()
+				if err := s.TotalProgress.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"totalProgress\"")
+			}
+		case "totalTransferBytes":
+			if err := func() error {
+				s.TotalTransferBytes.Reset()
+				if err := s.TotalTransferBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"totalTransferBytes\"")
+			}
+		case "totalTransferTimeSecs":
+			if err := func() error {
+				s.TotalTransferTimeSecs.Reset()
+				if err := s.TotalTransferTimeSecs.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"totalTransferTimeSecs\"")
+			}
+		case "lastTransferSize":
+			if err := func() error {
+				s.LastTransferSize.Reset()
+				if err := s.LastTransferSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastTransferSize\"")
+			}
+		case "lastTransferDuration":
+			if err := func() error {
+				s.LastTransferDuration.Reset()
+				if err := s.LastTransferDuration.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastTransferDuration\"")
+			}
+		case "lastTransferEndTime":
+			if err := func() error {
+				s.LastTransferEndTime.Reset()
+				if err := s.LastTransferEndTime.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastTransferEndTime\"")
+			}
+		case "progressLastUpdated":
+			if err := func() error {
+				s.ProgressLastUpdated.Reset()
+				if err := s.ProgressLastUpdated.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"progressLastUpdated\"")
+			}
+		case "lastUpdatedFromOntap":
+			if err := func() error {
+				s.LastUpdatedFromOntap.Reset()
+				if err := s.LastUpdatedFromOntap.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lastUpdatedFromOntap\"")
+			}
+		case "endpointType":
+			if err := func() error {
+				s.EndpointType.Reset()
+				if err := s.EndpointType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"endpointType\"")
+			}
+		case "replicationType":
+			if err := func() error {
+				s.ReplicationType.Reset()
+				if err := s.ReplicationType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"replicationType\"")
+			}
+		case "replicationSchedule":
+			if err := func() error {
+				s.ReplicationSchedule.Reset()
+				if err := s.ReplicationSchedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"replicationSchedule\"")
+			}
+		case "sourcePoolUuid":
+			if err := func() error {
+				s.SourcePoolUuid.Reset()
+				if err := s.SourcePoolUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourcePoolUuid\"")
+			}
+		case "sourceVolumeUuid":
+			if err := func() error {
+				s.SourceVolumeUuid.Reset()
+				if err := s.SourceVolumeUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceVolumeUuid\"")
+			}
+		case "sourceVolumeName":
+			if err := func() error {
+				s.SourceVolumeName.Reset()
+				if err := s.SourceVolumeName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceVolumeName\"")
+			}
+		case "sourceSvmName":
+			if err := func() error {
+				s.SourceSvmName.Reset()
+				if err := s.SourceSvmName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceSvmName\"")
+			}
+		case "sourceLocation":
+			if err := func() error {
+				s.SourceLocation.Reset()
+				if err := s.SourceLocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sourceLocation\"")
+			}
+		case "destinationPoolUuid":
+			if err := func() error {
+				s.DestinationPoolUuid.Reset()
+				if err := s.DestinationPoolUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"destinationPoolUuid\"")
+			}
+		case "destinationVolumeUuid":
+			if err := func() error {
+				s.DestinationVolumeUuid.Reset()
+				if err := s.DestinationVolumeUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"destinationVolumeUuid\"")
+			}
+		case "destinationVolumeName":
+			if err := func() error {
+				s.DestinationVolumeName.Reset()
+				if err := s.DestinationVolumeName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"destinationVolumeName\"")
+			}
+		case "destinationSvmName":
+			if err := func() error {
+				s.DestinationSvmName.Reset()
+				if err := s.DestinationSvmName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"destinationSvmName\"")
+			}
+		case "destinationLocation":
+			if err := func() error {
+				s.DestinationLocation.Reset()
+				if err := s.DestinationLocation.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"destinationLocation\"")
+			}
+		case "externalUuid":
+			if err := func() error {
+				s.ExternalUuid.Reset()
+				if err := s.ExternalUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"externalUuid\"")
+			}
+		case "isHybrid":
+			if err := func() error {
+				s.IsHybrid.Reset()
+				if err := s.IsHybrid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isHybrid\"")
+			}
+		case "createdAt":
+			requiredBitSet[5] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[5] |= 1 << 1
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[5] |= 1 << 2
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsReplicationV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [6]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsReplicationV1) {
+					name = jsonFieldsNameOfOpsReplicationV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsReplicationV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsReplicationV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsResourceTypeV1 as json.
+func (s OpsResourceTypeV1) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes OpsResourceTypeV1 from json.
+func (s *OpsResourceTypeV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsResourceTypeV1 to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch OpsResourceTypeV1(v) {
+	case OpsResourceTypeV1Pool:
+		*s = OpsResourceTypeV1Pool
+	case OpsResourceTypeV1Volume:
+		*s = OpsResourceTypeV1Volume
+	case OpsResourceTypeV1Snapshot:
+		*s = OpsResourceTypeV1Snapshot
+	case OpsResourceTypeV1Replication:
+		*s = OpsResourceTypeV1Replication
+	case OpsResourceTypeV1Backup:
+		*s = OpsResourceTypeV1Backup
+	case OpsResourceTypeV1BackupVault:
+		*s = OpsResourceTypeV1BackupVault
+	case OpsResourceTypeV1BackupPolicy:
+		*s = OpsResourceTypeV1BackupPolicy
+	case OpsResourceTypeV1Cmek:
+		*s = OpsResourceTypeV1Cmek
+	case OpsResourceTypeV1ActiveDirectory:
+		*s = OpsResourceTypeV1ActiveDirectory
+	case OpsResourceTypeV1Job:
+		*s = OpsResourceTypeV1Job
+	default:
+		*s = OpsResourceTypeV1(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsResourceTypeV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsResourceTypeV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsResourceV1 as json.
+func (s OpsResourceV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+func (s OpsResourceV1) encodeFields(e *jx.Encoder) {
+	switch s.Type {
+	case OpsActiveDirectoryV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("activeDirectory")
+		{
+			s := s.OpsActiveDirectoryV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.Username.Set {
+					e.FieldStart("username")
+					s.Username.Encode(e)
+				}
+			}
+			{
+				if s.Domain.Set {
+					e.FieldStart("domain")
+					s.Domain.Encode(e)
+				}
+			}
+			{
+				if s.DNS.Set {
+					e.FieldStart("dns")
+					s.DNS.Encode(e)
+				}
+			}
+			{
+				if s.NetBios.Set {
+					e.FieldStart("netBios")
+					s.NetBios.Encode(e)
+				}
+			}
+			{
+				if s.ChangeId.Set {
+					e.FieldStart("changeId")
+					s.ChangeId.Encode(e)
+				}
+			}
+			{
+				if s.OrganizationalUnit.Set {
+					e.FieldStart("organizationalUnit")
+					s.OrganizationalUnit.Encode(e)
+				}
+			}
+			{
+				if s.Site.Set {
+					e.FieldStart("site")
+					s.Site.Encode(e)
+				}
+			}
+			{
+				if s.KdcIp.Set {
+					e.FieldStart("kdcIp")
+					s.KdcIp.Encode(e)
+				}
+			}
+			{
+				if s.KdcHostname.Set {
+					e.FieldStart("kdcHostname")
+					s.KdcHostname.Encode(e)
+				}
+			}
+			{
+				if s.UserDn.Set {
+					e.FieldStart("userDn")
+					s.UserDn.Encode(e)
+				}
+			}
+			{
+				if s.GroupDn.Set {
+					e.FieldStart("groupDn")
+					s.GroupDn.Encode(e)
+				}
+			}
+			{
+				if s.GroupMembershipFilter.Set {
+					e.FieldStart("groupMembershipFilter")
+					s.GroupMembershipFilter.Encode(e)
+				}
+			}
+			{
+				if s.PreferredServersForLdapClient.Set {
+					e.FieldStart("preferredServersForLdapClient")
+					s.PreferredServersForLdapClient.Encode(e)
+				}
+			}
+			{
+				if s.PrimaryAd.Set {
+					e.FieldStart("primaryAd")
+					s.PrimaryAd.Encode(e)
+				}
+			}
+			{
+				if s.ManagedAd.Set {
+					e.FieldStart("managedAd")
+					s.ManagedAd.Encode(e)
+				}
+			}
+			{
+				if s.AesEncryption.Set {
+					e.FieldStart("aesEncryption")
+					s.AesEncryption.Encode(e)
+				}
+			}
+			{
+				if s.EncryptDcConnections.Set {
+					e.FieldStart("encryptDcConnections")
+					s.EncryptDcConnections.Encode(e)
+				}
+			}
+			{
+				if s.LdapSigning.Set {
+					e.FieldStart("ldapSigning")
+					s.LdapSigning.Encode(e)
+				}
+			}
+			{
+				if s.LdapOverTls.Set {
+					e.FieldStart("ldapOverTls")
+					s.LdapOverTls.Encode(e)
+				}
+			}
+			{
+				if s.AllowLocalNfsUsersWithLdap.Set {
+					e.FieldStart("allowLocalNfsUsersWithLdap")
+					s.AllowLocalNfsUsersWithLdap.Encode(e)
+				}
+			}
+			{
+				if s.SvmIds != nil {
+					e.FieldStart("svmIds")
+					e.ArrStart()
+					for _, elem := range s.SvmIds {
+						e.Str(elem)
+					}
+					e.ArrEnd()
+				}
+			}
+			{
+				if s.ServerRootCaCertificateSha256.Set {
+					e.FieldStart("serverRootCaCertificateSha256")
+					s.ServerRootCaCertificateSha256.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsBackupV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("backup")
+		{
+			s := s.OpsBackupV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.BackupVaultUuid.Set {
+					e.FieldStart("backupVaultUuid")
+					s.BackupVaultUuid.Encode(e)
+				}
+			}
+			{
+				if s.BackupVaultName.Set {
+					e.FieldStart("backupVaultName")
+					s.BackupVaultName.Encode(e)
+				}
+			}
+			{
+				if s.VolumeUuid.Set {
+					e.FieldStart("volumeUuid")
+					s.VolumeUuid.Encode(e)
+				}
+			}
+			{
+				if s.VolumeName.Set {
+					e.FieldStart("volumeName")
+					s.VolumeName.Encode(e)
+				}
+			}
+			{
+				if s.SourceVolumeZone.Set {
+					e.FieldStart("sourceVolumeZone")
+					s.SourceVolumeZone.Encode(e)
+				}
+			}
+			{
+				if s.Type.Set {
+					e.FieldStart("type")
+					s.Type.Encode(e)
+				}
+			}
+			{
+				if s.ScheduleTag.Set {
+					e.FieldStart("scheduleTag")
+					s.ScheduleTag.Encode(e)
+				}
+			}
+			{
+				if s.SizeInBytes.Set {
+					e.FieldStart("sizeInBytes")
+					s.SizeInBytes.Encode(e)
+				}
+			}
+			{
+				if s.LatestLogicalBackupSize.Set {
+					e.FieldStart("latestLogicalBackupSize")
+					s.LatestLogicalBackupSize.Encode(e)
+				}
+			}
+			{
+				if s.ExternalUuid.Set {
+					e.FieldStart("externalUuid")
+					s.ExternalUuid.Encode(e)
+				}
+			}
+			{
+				if s.BackupPolicyName.Set {
+					e.FieldStart("backupPolicyName")
+					s.BackupPolicyName.Encode(e)
+				}
+			}
+			{
+				if s.SnapshotName.Set {
+					e.FieldStart("snapshotName")
+					s.SnapshotName.Encode(e)
+				}
+			}
+			{
+				if s.CompletionTime.Set {
+					e.FieldStart("completionTime")
+					s.CompletionTime.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsBackupPolicyV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("backupPolicy")
+		{
+			s := s.OpsBackupPolicyV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.DailyBackupsToKeep.Set {
+					e.FieldStart("dailyBackupsToKeep")
+					s.DailyBackupsToKeep.Encode(e)
+				}
+			}
+			{
+				if s.WeeklyBackupsToKeep.Set {
+					e.FieldStart("weeklyBackupsToKeep")
+					s.WeeklyBackupsToKeep.Encode(e)
+				}
+			}
+			{
+				if s.MonthlyBackupsToKeep.Set {
+					e.FieldStart("monthlyBackupsToKeep")
+					s.MonthlyBackupsToKeep.Encode(e)
+				}
+			}
+			{
+				if s.PolicyEnabled.Set {
+					e.FieldStart("policyEnabled")
+					s.PolicyEnabled.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsBackupVaultV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("backupVault")
+		{
+			s := s.OpsBackupVaultV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.BackupVaultType.Set {
+					e.FieldStart("backupVaultType")
+					s.BackupVaultType.Encode(e)
+				}
+			}
+			{
+				if s.ServiceType.Set {
+					e.FieldStart("serviceType")
+					s.ServiceType.Encode(e)
+				}
+			}
+			{
+				if s.BackupRegionName.Set {
+					e.FieldStart("backupRegionName")
+					s.BackupRegionName.Encode(e)
+				}
+			}
+			{
+				if s.SourceRegionName.Set {
+					e.FieldStart("sourceRegionName")
+					s.SourceRegionName.Encode(e)
+				}
+			}
+			{
+				if s.CrossRegionBackupVaultName.Set {
+					e.FieldStart("crossRegionBackupVaultName")
+					s.CrossRegionBackupVaultName.Encode(e)
+				}
+			}
+			{
+				if s.ExternalUuid.Set {
+					e.FieldStart("externalUuid")
+					s.ExternalUuid.Encode(e)
+				}
+			}
+			{
+				if s.KmsConfigResourcePath.Set {
+					e.FieldStart("kmsConfigResourcePath")
+					s.KmsConfigResourcePath.Encode(e)
+				}
+			}
+			{
+				if s.EncryptionState.Set {
+					e.FieldStart("encryptionState")
+					s.EncryptionState.Encode(e)
+				}
+			}
+			{
+				if s.BackupsPrimaryKeyVersion.Set {
+					e.FieldStart("backupsPrimaryKeyVersion")
+					s.BackupsPrimaryKeyVersion.Encode(e)
+				}
+			}
+			{
+				if s.BucketNames != nil {
+					e.FieldStart("bucketNames")
+					e.ArrStart()
+					for _, elem := range s.BucketNames {
+						e.Str(elem)
+					}
+					e.ArrEnd()
+				}
+			}
+			{
+				if s.BackupMinimumEnforcedRetentionDuration.Set {
+					e.FieldStart("backupMinimumEnforcedRetentionDuration")
+					s.BackupMinimumEnforcedRetentionDuration.Encode(e)
+				}
+			}
+			{
+				if s.IsDailyBackupImmutable.Set {
+					e.FieldStart("isDailyBackupImmutable")
+					s.IsDailyBackupImmutable.Encode(e)
+				}
+			}
+			{
+				if s.IsWeeklyBackupImmutable.Set {
+					e.FieldStart("isWeeklyBackupImmutable")
+					s.IsWeeklyBackupImmutable.Encode(e)
+				}
+			}
+			{
+				if s.IsMonthlyBackupImmutable.Set {
+					e.FieldStart("isMonthlyBackupImmutable")
+					s.IsMonthlyBackupImmutable.Encode(e)
+				}
+			}
+			{
+				if s.IsAdhocBackupImmutable.Set {
+					e.FieldStart("isAdhocBackupImmutable")
+					s.IsAdhocBackupImmutable.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsCmekV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("cmek")
+		{
+			s := s.OpsCmekV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.ResourceId.Set {
+					e.FieldStart("resourceId")
+					s.ResourceId.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.KeyRing.Set {
+					e.FieldStart("keyRing")
+					s.KeyRing.Encode(e)
+				}
+			}
+			{
+				if s.KeyRingLocation.Set {
+					e.FieldStart("keyRingLocation")
+					s.KeyRingLocation.Encode(e)
+				}
+			}
+			{
+				if s.KeyName.Set {
+					e.FieldStart("keyName")
+					s.KeyName.Encode(e)
+				}
+			}
+			{
+				if s.KeyProjectId.Set {
+					e.FieldStart("keyProjectId")
+					s.KeyProjectId.Encode(e)
+				}
+			}
+			{
+				if s.CustomerProjectId.Set {
+					e.FieldStart("customerProjectId")
+					s.CustomerProjectId.Encode(e)
+				}
+			}
+			{
+				if s.CreationMode.Set {
+					e.FieldStart("creationMode")
+					s.CreationMode.Encode(e)
+				}
+			}
+			{
+				if s.ServiceAccountEmail.Set {
+					e.FieldStart("serviceAccountEmail")
+					s.ServiceAccountEmail.Encode(e)
+				}
+			}
+			{
+				if s.SdeHealthy.Set {
+					e.FieldStart("sdeHealthy")
+					s.SdeHealthy.Encode(e)
+				}
+			}
+			{
+				if s.ServiceAccount.Set {
+					e.FieldStart("serviceAccount")
+					s.ServiceAccount.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsJobV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("job")
+		{
+			s := s.OpsJobV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("job")
+				s.Job.Encode(e)
+			}
+			{
+				e.FieldStart("temporal")
+				s.Temporal.Encode(e)
+			}
+		}
+	case OpsPoolV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("pool")
+		{
+			s := s.OpsPoolV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.ServiceLevel.Set {
+					e.FieldStart("serviceLevel")
+					s.ServiceLevel.Encode(e)
+				}
+			}
+			{
+				if s.SizeInBytes.Set {
+					e.FieldStart("sizeInBytes")
+					s.SizeInBytes.Encode(e)
+				}
+			}
+			{
+				if s.UsedBytes.Set {
+					e.FieldStart("usedBytes")
+					s.UsedBytes.Encode(e)
+				}
+			}
+			{
+				if s.Network.Set {
+					e.FieldStart("network")
+					s.Network.Encode(e)
+				}
+			}
+			{
+				if s.AllowAutoTiering.Set {
+					e.FieldStart("allowAutoTiering")
+					s.AllowAutoTiering.Encode(e)
+				}
+			}
+			{
+				if s.QosType.Set {
+					e.FieldStart("qosType")
+					s.QosType.Encode(e)
+				}
+			}
+			{
+				if s.DeploymentName.Set {
+					e.FieldStart("deploymentName")
+					s.DeploymentName.Encode(e)
+				}
+			}
+			{
+				if s.HostUuid.Set {
+					e.FieldStart("hostUuid")
+					s.HostUuid.Encode(e)
+				}
+			}
+			{
+				if s.KmsConfigUuid.Set {
+					e.FieldStart("kmsConfigUuid")
+					s.KmsConfigUuid.Encode(e)
+				}
+			}
+			{
+				if s.ActiveDirectoryUuid.Set {
+					e.FieldStart("activeDirectoryUuid")
+					s.ActiveDirectoryUuid.Encode(e)
+				}
+			}
+			{
+				if s.ApiAccessMode.Set {
+					e.FieldStart("apiAccessMode")
+					s.ApiAccessMode.Encode(e)
+				}
+			}
+			{
+				if s.LargeCapacity.Set {
+					e.FieldStart("largeCapacity")
+					s.LargeCapacity.Encode(e)
+				}
+			}
+			{
+				if s.IsPreview.Set {
+					e.FieldStart("isPreview")
+					s.IsPreview.Encode(e)
+				}
+			}
+			{
+				if s.SatisfiesZi.Set {
+					e.FieldStart("satisfiesZi")
+					s.SatisfiesZi.Encode(e)
+				}
+			}
+			{
+				if s.SatisfiesZs.Set {
+					e.FieldStart("satisfiesZs")
+					s.SatisfiesZs.Encode(e)
+				}
+			}
+			{
+				if s.PrimaryZone.Set {
+					e.FieldStart("primaryZone")
+					s.PrimaryZone.Encode(e)
+				}
+			}
+			{
+				if s.SecondaryZone.Set {
+					e.FieldStart("secondaryZone")
+					s.SecondaryZone.Encode(e)
+				}
+			}
+			{
+				if s.IsRegionalHa.Set {
+					e.FieldStart("isRegionalHa")
+					s.IsRegionalHa.Encode(e)
+				}
+			}
+			{
+				if s.IsTrueZonal.Set {
+					e.FieldStart("isTrueZonal")
+					s.IsTrueZonal.Encode(e)
+				}
+			}
+			{
+				if s.ThroughputMibps.Set {
+					e.FieldStart("throughputMibps")
+					s.ThroughputMibps.Encode(e)
+				}
+			}
+			{
+				if s.Iops.Set {
+					e.FieldStart("iops")
+					s.Iops.Encode(e)
+				}
+			}
+			{
+				if s.WorkflowId.Set {
+					e.FieldStart("workflowId")
+					s.WorkflowId.Encode(e)
+				}
+			}
+			{
+				if s.AuthType.Set {
+					e.FieldStart("authType")
+					s.AuthType.Encode(e)
+				}
+			}
+			{
+				if s.CredentialConfigured.Set {
+					e.FieldStart("credentialConfigured")
+					s.CredentialConfigured.Encode(e)
+				}
+			}
+			{
+				if s.CertificateRotation.Set {
+					e.FieldStart("certificateRotation")
+					s.CertificateRotation.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsReplicationV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("replication")
+		{
+			s := s.OpsReplicationV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.VolumeUuid.Set {
+					e.FieldStart("volumeUuid")
+					s.VolumeUuid.Encode(e)
+				}
+			}
+			{
+				if s.VolumeName.Set {
+					e.FieldStart("volumeName")
+					s.VolumeName.Encode(e)
+				}
+			}
+			{
+				if s.MirrorState.Set {
+					e.FieldStart("mirrorState")
+					s.MirrorState.Encode(e)
+				}
+			}
+			{
+				if s.RelationshipStatus.Set {
+					e.FieldStart("relationshipStatus")
+					s.RelationshipStatus.Encode(e)
+				}
+			}
+			{
+				if s.Healthy.Set {
+					e.FieldStart("healthy")
+					s.Healthy.Encode(e)
+				}
+			}
+			{
+				if s.UnhealthyReasonPresent.Set {
+					e.FieldStart("unhealthyReasonPresent")
+					s.UnhealthyReasonPresent.Encode(e)
+				}
+			}
+			{
+				if s.LastTransferErrorPresent.Set {
+					e.FieldStart("lastTransferErrorPresent")
+					s.LastTransferErrorPresent.Encode(e)
+				}
+			}
+			{
+				if s.LagTime.Set {
+					e.FieldStart("lagTime")
+					s.LagTime.Encode(e)
+				}
+			}
+			{
+				if s.TotalProgress.Set {
+					e.FieldStart("totalProgress")
+					s.TotalProgress.Encode(e)
+				}
+			}
+			{
+				if s.TotalTransferBytes.Set {
+					e.FieldStart("totalTransferBytes")
+					s.TotalTransferBytes.Encode(e)
+				}
+			}
+			{
+				if s.TotalTransferTimeSecs.Set {
+					e.FieldStart("totalTransferTimeSecs")
+					s.TotalTransferTimeSecs.Encode(e)
+				}
+			}
+			{
+				if s.LastTransferSize.Set {
+					e.FieldStart("lastTransferSize")
+					s.LastTransferSize.Encode(e)
+				}
+			}
+			{
+				if s.LastTransferDuration.Set {
+					e.FieldStart("lastTransferDuration")
+					s.LastTransferDuration.Encode(e)
+				}
+			}
+			{
+				if s.LastTransferEndTime.Set {
+					e.FieldStart("lastTransferEndTime")
+					s.LastTransferEndTime.Encode(e, json.EncodeDateTime)
+				}
+			}
+			{
+				if s.ProgressLastUpdated.Set {
+					e.FieldStart("progressLastUpdated")
+					s.ProgressLastUpdated.Encode(e, json.EncodeDateTime)
+				}
+			}
+			{
+				if s.LastUpdatedFromOntap.Set {
+					e.FieldStart("lastUpdatedFromOntap")
+					s.LastUpdatedFromOntap.Encode(e, json.EncodeDateTime)
+				}
+			}
+			{
+				if s.EndpointType.Set {
+					e.FieldStart("endpointType")
+					s.EndpointType.Encode(e)
+				}
+			}
+			{
+				if s.ReplicationType.Set {
+					e.FieldStart("replicationType")
+					s.ReplicationType.Encode(e)
+				}
+			}
+			{
+				if s.ReplicationSchedule.Set {
+					e.FieldStart("replicationSchedule")
+					s.ReplicationSchedule.Encode(e)
+				}
+			}
+			{
+				if s.SourcePoolUuid.Set {
+					e.FieldStart("sourcePoolUuid")
+					s.SourcePoolUuid.Encode(e)
+				}
+			}
+			{
+				if s.SourceVolumeUuid.Set {
+					e.FieldStart("sourceVolumeUuid")
+					s.SourceVolumeUuid.Encode(e)
+				}
+			}
+			{
+				if s.SourceVolumeName.Set {
+					e.FieldStart("sourceVolumeName")
+					s.SourceVolumeName.Encode(e)
+				}
+			}
+			{
+				if s.SourceSvmName.Set {
+					e.FieldStart("sourceSvmName")
+					s.SourceSvmName.Encode(e)
+				}
+			}
+			{
+				if s.SourceLocation.Set {
+					e.FieldStart("sourceLocation")
+					s.SourceLocation.Encode(e)
+				}
+			}
+			{
+				if s.DestinationPoolUuid.Set {
+					e.FieldStart("destinationPoolUuid")
+					s.DestinationPoolUuid.Encode(e)
+				}
+			}
+			{
+				if s.DestinationVolumeUuid.Set {
+					e.FieldStart("destinationVolumeUuid")
+					s.DestinationVolumeUuid.Encode(e)
+				}
+			}
+			{
+				if s.DestinationVolumeName.Set {
+					e.FieldStart("destinationVolumeName")
+					s.DestinationVolumeName.Encode(e)
+				}
+			}
+			{
+				if s.DestinationSvmName.Set {
+					e.FieldStart("destinationSvmName")
+					s.DestinationSvmName.Encode(e)
+				}
+			}
+			{
+				if s.DestinationLocation.Set {
+					e.FieldStart("destinationLocation")
+					s.DestinationLocation.Encode(e)
+				}
+			}
+			{
+				if s.ExternalUuid.Set {
+					e.FieldStart("externalUuid")
+					s.ExternalUuid.Encode(e)
+				}
+			}
+			{
+				if s.IsHybrid.Set {
+					e.FieldStart("isHybrid")
+					s.IsHybrid.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsSnapshotV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("snapshot")
+		{
+			s := s.OpsSnapshotV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.VolumeUuid.Set {
+					e.FieldStart("volumeUuid")
+					s.VolumeUuid.Encode(e)
+				}
+			}
+			{
+				if s.VolumeName.Set {
+					e.FieldStart("volumeName")
+					s.VolumeName.Encode(e)
+				}
+			}
+			{
+				if s.Type.Set {
+					e.FieldStart("type")
+					s.Type.Encode(e)
+				}
+			}
+			{
+				if s.IsAppConsistent.Set {
+					e.FieldStart("isAppConsistent")
+					s.IsAppConsistent.Encode(e)
+				}
+			}
+			{
+				if s.ExternalUuid.Set {
+					e.FieldStart("externalUuid")
+					s.ExternalUuid.Encode(e)
+				}
+			}
+			{
+				if s.SizeInBytes.Set {
+					e.FieldStart("sizeInBytes")
+					s.SizeInBytes.Encode(e)
+				}
+			}
+			{
+				if s.LogicalSizeUsedInBytes.Set {
+					e.FieldStart("logicalSizeUsedInBytes")
+					s.LogicalSizeUsedInBytes.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	case OpsVolumeV1OpsResourceV1:
+		e.FieldStart("resourceType")
+		e.Str("volume")
+		{
+			s := s.OpsVolumeV1
+			{
+				e.FieldStart("source")
+				s.Source.Encode(e)
+			}
+			{
+				e.FieldStart("uuid")
+				e.Str(s.UUID)
+			}
+			{
+				if s.Name.Set {
+					e.FieldStart("name")
+					s.Name.Encode(e)
+				}
+			}
+			{
+				if s.Description.Set {
+					e.FieldStart("description")
+					s.Description.Encode(e)
+				}
+			}
+			{
+				if s.State.Set {
+					e.FieldStart("state")
+					s.State.Encode(e)
+				}
+			}
+			{
+				if s.StateDetails.Set {
+					e.FieldStart("stateDetails")
+					s.StateDetails.Encode(e)
+				}
+			}
+			{
+				if s.StateDetailsWithheld.Set {
+					e.FieldStart("stateDetailsWithheld")
+					s.StateDetailsWithheld.Encode(e)
+				}
+			}
+			{
+				if s.Health.Set {
+					e.FieldStart("health")
+					s.Health.Encode(e)
+				}
+			}
+			{
+				if s.ProjectNumber.Set {
+					e.FieldStart("projectNumber")
+					s.ProjectNumber.Encode(e)
+				}
+			}
+			{
+				if s.PoolUuid.Set {
+					e.FieldStart("poolUuid")
+					s.PoolUuid.Encode(e)
+				}
+			}
+			{
+				if s.PoolName.Set {
+					e.FieldStart("poolName")
+					s.PoolName.Encode(e)
+				}
+			}
+			{
+				if s.SvmUuid.Set {
+					e.FieldStart("svmUuid")
+					s.SvmUuid.Encode(e)
+				}
+			}
+			{
+				if s.SvmName.Set {
+					e.FieldStart("svmName")
+					s.SvmName.Encode(e)
+				}
+			}
+			{
+				if s.VolumePerformanceGroupUuid.Set {
+					e.FieldStart("volumePerformanceGroupUuid")
+					s.VolumePerformanceGroupUuid.Encode(e)
+				}
+			}
+			{
+				if s.SizeInBytes.Set {
+					e.FieldStart("sizeInBytes")
+					s.SizeInBytes.Encode(e)
+				}
+			}
+			{
+				if s.UsedBytes.Set {
+					e.FieldStart("usedBytes")
+					s.UsedBytes.Encode(e)
+				}
+			}
+			{
+				if s.Throughput.Set {
+					e.FieldStart("throughput")
+					s.Throughput.Encode(e)
+				}
+			}
+			{
+				if s.MountPath.Set {
+					e.FieldStart("mountPath")
+					s.MountPath.Encode(e)
+				}
+			}
+			{
+				if s.CreationToken.Set {
+					e.FieldStart("creationToken")
+					s.CreationToken.Encode(e)
+				}
+			}
+			{
+				if s.Protocols != nil {
+					e.FieldStart("protocols")
+					e.ArrStart()
+					for _, elem := range s.Protocols {
+						e.Str(elem)
+					}
+					e.ArrEnd()
+				}
+			}
+			{
+				if s.SecurityStyle.Set {
+					e.FieldStart("securityStyle")
+					s.SecurityStyle.Encode(e)
+				}
+			}
+			{
+				if s.IsDataProtection.Set {
+					e.FieldStart("isDataProtection")
+					s.IsDataProtection.Encode(e)
+				}
+			}
+			{
+				if s.IsRegionalHa.Set {
+					e.FieldStart("isRegionalHa")
+					s.IsRegionalHa.Encode(e)
+				}
+			}
+			{
+				if s.Zone.Set {
+					e.FieldStart("zone")
+					s.Zone.Encode(e)
+				}
+			}
+			{
+				if s.SecondaryZone.Set {
+					e.FieldStart("secondaryZone")
+					s.SecondaryZone.Encode(e)
+				}
+			}
+			{
+				if s.SnapReserve.Set {
+					e.FieldStart("snapReserve")
+					s.SnapReserve.Encode(e)
+				}
+			}
+			{
+				if s.SnapshotDirectory.Set {
+					e.FieldStart("snapshotDirectory")
+					s.SnapshotDirectory.Encode(e)
+				}
+			}
+			{
+				if s.KerberosEnabled.Set {
+					e.FieldStart("kerberosEnabled")
+					s.KerberosEnabled.Encode(e)
+				}
+			}
+			{
+				if s.LdapEnabled.Set {
+					e.FieldStart("ldapEnabled")
+					s.LdapEnabled.Encode(e)
+				}
+			}
+			{
+				if s.AutoTieringEnabled.Set {
+					e.FieldStart("autoTieringEnabled")
+					s.AutoTieringEnabled.Encode(e)
+				}
+			}
+			{
+				if s.HotTierSizeGib.Set {
+					e.FieldStart("hotTierSizeGib")
+					s.HotTierSizeGib.Encode(e)
+				}
+			}
+			{
+				if s.ColdTierSizeGib.Set {
+					e.FieldStart("coldTierSizeGib")
+					s.ColdTierSizeGib.Encode(e)
+				}
+			}
+			{
+				if s.ClonesSharedBytes.Set {
+					e.FieldStart("clonesSharedBytes")
+					s.ClonesSharedBytes.Encode(e)
+				}
+			}
+			{
+				if s.BackupVaultUuid.Set {
+					e.FieldStart("backupVaultUuid")
+					s.BackupVaultUuid.Encode(e)
+				}
+			}
+			{
+				if s.BackupPolicyUuid.Set {
+					e.FieldStart("backupPolicyUuid")
+					s.BackupPolicyUuid.Encode(e)
+				}
+			}
+			{
+				if s.ScheduledBackupEnabled.Set {
+					e.FieldStart("scheduledBackupEnabled")
+					s.ScheduledBackupEnabled.Encode(e)
+				}
+			}
+			{
+				if s.RestrictedActions != nil {
+					e.FieldStart("restrictedActions")
+					e.ArrStart()
+					for _, elem := range s.RestrictedActions {
+						e.Str(elem)
+					}
+					e.ArrEnd()
+				}
+			}
+			{
+				if s.ExternalUuid.Set {
+					e.FieldStart("externalUuid")
+					s.ExternalUuid.Encode(e)
+				}
+			}
+			{
+				e.FieldStart("createdAt")
+				json.EncodeDateTime(e, s.CreatedAt)
+			}
+			{
+				e.FieldStart("updatedAt")
+				json.EncodeDateTime(e, s.UpdatedAt)
+			}
+			{
+				e.FieldStart("deletedAt")
+				s.DeletedAt.Encode(e, json.EncodeDateTime)
+			}
+		}
+	}
+}
+
+// Decode decodes OpsResourceV1 from json.
+func (s *OpsResourceV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsResourceV1 to nil")
+	}
+	// Sum type discriminator.
+	if typ := d.Next(); typ != jx.Object {
+		return errors.Errorf("unexpected json type %q", typ)
+	}
+
+	var found bool
+	if err := d.Capture(func(d *jx.Decoder) error {
+		return d.ObjBytes(func(d *jx.Decoder, key []byte) error {
+			if found {
+				return d.Skip()
+			}
+			switch string(key) {
+			case "resourceType":
+				typ, err := d.Str()
+				if err != nil {
+					return err
+				}
+				switch typ {
+				case "activeDirectory":
+					s.Type = OpsActiveDirectoryV1OpsResourceV1
+					found = true
+				case "backup":
+					s.Type = OpsBackupV1OpsResourceV1
+					found = true
+				case "backupPolicy":
+					s.Type = OpsBackupPolicyV1OpsResourceV1
+					found = true
+				case "backupVault":
+					s.Type = OpsBackupVaultV1OpsResourceV1
+					found = true
+				case "cmek":
+					s.Type = OpsCmekV1OpsResourceV1
+					found = true
+				case "job":
+					s.Type = OpsJobV1OpsResourceV1
+					found = true
+				case "pool":
+					s.Type = OpsPoolV1OpsResourceV1
+					found = true
+				case "replication":
+					s.Type = OpsReplicationV1OpsResourceV1
+					found = true
+				case "snapshot":
+					s.Type = OpsSnapshotV1OpsResourceV1
+					found = true
+				case "volume":
+					s.Type = OpsVolumeV1OpsResourceV1
+					found = true
+				default:
+					return errors.Errorf("unknown type %s", typ)
+				}
+				return nil
+			}
+			return d.Skip()
+		})
+	}); err != nil {
+		return errors.Wrap(err, "capture")
+	}
+	if !found {
+		return errors.New("unable to detect sum type variant")
+	}
+	switch s.Type {
+	case OpsPoolV1OpsResourceV1:
+		if err := s.OpsPoolV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsVolumeV1OpsResourceV1:
+		if err := s.OpsVolumeV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsSnapshotV1OpsResourceV1:
+		if err := s.OpsSnapshotV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsReplicationV1OpsResourceV1:
+		if err := s.OpsReplicationV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsBackupV1OpsResourceV1:
+		if err := s.OpsBackupV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsBackupVaultV1OpsResourceV1:
+		if err := s.OpsBackupVaultV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsBackupPolicyV1OpsResourceV1:
+		if err := s.OpsBackupPolicyV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsCmekV1OpsResourceV1:
+		if err := s.OpsCmekV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsActiveDirectoryV1OpsResourceV1:
+		if err := s.OpsActiveDirectoryV1.Decode(d); err != nil {
+			return err
+		}
+	case OpsJobV1OpsResourceV1:
+		if err := s.OpsJobV1.Decode(d); err != nil {
+			return err
+		}
+	default:
+		return errors.Errorf("inferred invalid type: %s", s.Type)
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsResourceV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsResourceV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsServiceAccountKeyRotationV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsServiceAccountKeyRotationV1) encodeFields(e *jx.Encoder) {
+	{
+		if s.PrimaryKeyId.Set {
+			e.FieldStart("primaryKeyId")
+			s.PrimaryKeyId.Encode(e)
+		}
+	}
+	{
+		if s.PrimaryKeyCreatedAt.Set {
+			e.FieldStart("primaryKeyCreatedAt")
+			s.PrimaryKeyCreatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		e.FieldStart("rotationInProgress")
+		e.Bool(s.RotationInProgress)
+	}
+	{
+		e.FieldStart("keysPendingDeletion")
+		e.Int32(s.KeysPendingDeletion)
+	}
+	{
+		if s.Keys != nil {
+			e.FieldStart("keys")
+			e.ArrStart()
+			for _, elem := range s.Keys {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsServiceAccountKeyRotationV1 = [5]string{
+	0: "primaryKeyId",
+	1: "primaryKeyCreatedAt",
+	2: "rotationInProgress",
+	3: "keysPendingDeletion",
+	4: "keys",
+}
+
+// Decode decodes OpsServiceAccountKeyRotationV1 from json.
+func (s *OpsServiceAccountKeyRotationV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsServiceAccountKeyRotationV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "primaryKeyId":
+			if err := func() error {
+				s.PrimaryKeyId.Reset()
+				if err := s.PrimaryKeyId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"primaryKeyId\"")
+			}
+		case "primaryKeyCreatedAt":
+			if err := func() error {
+				s.PrimaryKeyCreatedAt.Reset()
+				if err := s.PrimaryKeyCreatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"primaryKeyCreatedAt\"")
+			}
+		case "rotationInProgress":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Bool()
+				s.RotationInProgress = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"rotationInProgress\"")
+			}
+		case "keysPendingDeletion":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				v, err := d.Int32()
+				s.KeysPendingDeletion = int32(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keysPendingDeletion\"")
+			}
+		case "keys":
+			if err := func() error {
+				s.Keys = make([]OpsServiceAccountKeyV1, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem OpsServiceAccountKeyV1
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Keys = append(s.Keys, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keys\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsServiceAccountKeyRotationV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00001100,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsServiceAccountKeyRotationV1) {
+					name = jsonFieldsNameOfOpsServiceAccountKeyRotationV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsServiceAccountKeyRotationV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsServiceAccountKeyRotationV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsServiceAccountKeyV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsServiceAccountKeyV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("keyId")
+		e.Str(s.KeyId)
+	}
+	{
+		e.FieldStart("isPrimary")
+		e.Bool(s.IsPrimary)
+	}
+	{
+		e.FieldStart("isActive")
+		e.Bool(s.IsActive)
+	}
+	{
+		if s.CreatedAt.Set {
+			e.FieldStart("createdAt")
+			s.CreatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsServiceAccountKeyV1 = [4]string{
+	0: "keyId",
+	1: "isPrimary",
+	2: "isActive",
+	3: "createdAt",
+}
+
+// Decode decodes OpsServiceAccountKeyV1 from json.
+func (s *OpsServiceAccountKeyV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsServiceAccountKeyV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "keyId":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.KeyId = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyId\"")
+			}
+		case "isPrimary":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Bool()
+				s.IsPrimary = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isPrimary\"")
+			}
+		case "isActive":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Bool()
+				s.IsActive = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isActive\"")
+			}
+		case "createdAt":
+			if err := func() error {
+				s.CreatedAt.Reset()
+				if err := s.CreatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsServiceAccountKeyV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsServiceAccountKeyV1) {
+					name = jsonFieldsNameOfOpsServiceAccountKeyV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsServiceAccountKeyV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsServiceAccountKeyV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsSnapshotV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsSnapshotV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.VolumeUuid.Set {
+			e.FieldStart("volumeUuid")
+			s.VolumeUuid.Encode(e)
+		}
+	}
+	{
+		if s.VolumeName.Set {
+			e.FieldStart("volumeName")
+			s.VolumeName.Encode(e)
+		}
+	}
+	{
+		if s.Type.Set {
+			e.FieldStart("type")
+			s.Type.Encode(e)
+		}
+	}
+	{
+		if s.IsAppConsistent.Set {
+			e.FieldStart("isAppConsistent")
+			s.IsAppConsistent.Encode(e)
+		}
+	}
+	{
+		if s.ExternalUuid.Set {
+			e.FieldStart("externalUuid")
+			s.ExternalUuid.Encode(e)
+		}
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("sizeInBytes")
+			s.SizeInBytes.Encode(e)
+		}
+	}
+	{
+		if s.LogicalSizeUsedInBytes.Set {
+			e.FieldStart("logicalSizeUsedInBytes")
+			s.LogicalSizeUsedInBytes.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsSnapshotV1 = [19]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "projectNumber",
+	9:  "volumeUuid",
+	10: "volumeName",
+	11: "type",
+	12: "isAppConsistent",
+	13: "externalUuid",
+	14: "sizeInBytes",
+	15: "logicalSizeUsedInBytes",
+	16: "createdAt",
+	17: "updatedAt",
+	18: "deletedAt",
+}
+
+// Decode decodes OpsSnapshotV1 from json.
+func (s *OpsSnapshotV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsSnapshotV1 to nil")
+	}
+	var requiredBitSet [3]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "volumeUuid":
+			if err := func() error {
+				s.VolumeUuid.Reset()
+				if err := s.VolumeUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeUuid\"")
+			}
+		case "volumeName":
+			if err := func() error {
+				s.VolumeName.Reset()
+				if err := s.VolumeName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumeName\"")
+			}
+		case "type":
+			if err := func() error {
+				s.Type.Reset()
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		case "isAppConsistent":
+			if err := func() error {
+				s.IsAppConsistent.Reset()
+				if err := s.IsAppConsistent.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isAppConsistent\"")
+			}
+		case "externalUuid":
+			if err := func() error {
+				s.ExternalUuid.Reset()
+				if err := s.ExternalUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"externalUuid\"")
+			}
+		case "sizeInBytes":
+			if err := func() error {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sizeInBytes\"")
+			}
+		case "logicalSizeUsedInBytes":
+			if err := func() error {
+				s.LogicalSizeUsedInBytes.Reset()
+				if err := s.LogicalSizeUsedInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"logicalSizeUsedInBytes\"")
+			}
+		case "createdAt":
+			requiredBitSet[2] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[2] |= 1 << 1
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[2] |= 1 << 2
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsSnapshotV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [3]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsSnapshotV1) {
+					name = jsonFieldsNameOfOpsSnapshotV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsSnapshotV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsSnapshotV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsSourceV1 as json.
+func (s OpsSourceV1) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes OpsSourceV1 from json.
+func (s *OpsSourceV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsSourceV1 to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch OpsSourceV1(v) {
+	case OpsSourceV1VcpDb:
+		*s = OpsSourceV1VcpDb
+	case OpsSourceV1VcpDbAndTemporal:
+		*s = OpsSourceV1VcpDbAndTemporal
+	default:
+		*s = OpsSourceV1(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsSourceV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsSourceV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsTimeFilterV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsTimeFilterV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("field")
+		s.Field.Encode(e)
+	}
+	{
+		if s.From.Set {
+			e.FieldStart("from")
+			s.From.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.To.Set {
+			e.FieldStart("to")
+			s.To.Encode(e, json.EncodeDateTime)
+		}
+	}
+}
+
+var jsonFieldsNameOfOpsTimeFilterV1 = [3]string{
+	0: "field",
+	1: "from",
+	2: "to",
+}
+
+// Decode decodes OpsTimeFilterV1 from json.
+func (s *OpsTimeFilterV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsTimeFilterV1 to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "field":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.Field.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"field\"")
+			}
+		case "from":
+			if err := func() error {
+				s.From.Reset()
+				if err := s.From.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"from\"")
+			}
+		case "to":
+			if err := func() error {
+				s.To.Reset()
+				if err := s.To.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"to\"")
+			}
+		default:
+			return errors.Errorf("unexpected field %q", k)
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsTimeFilterV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000001,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsTimeFilterV1) {
+					name = jsonFieldsNameOfOpsTimeFilterV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsTimeFilterV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsTimeFilterV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsTimeFilterV1Field as json.
+func (s OpsTimeFilterV1Field) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes OpsTimeFilterV1Field from json.
+func (s *OpsTimeFilterV1Field) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsTimeFilterV1Field to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch OpsTimeFilterV1Field(v) {
+	case OpsTimeFilterV1FieldCreatedAt:
+		*s = OpsTimeFilterV1FieldCreatedAt
+	case OpsTimeFilterV1FieldUpdatedAt:
+		*s = OpsTimeFilterV1FieldUpdatedAt
+	default:
+		*s = OpsTimeFilterV1Field(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OpsTimeFilterV1Field) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsTimeFilterV1Field) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *OpsVolumeV1) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *OpsVolumeV1) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("resourceType")
+		e.Str(s.ResourceType)
+	}
+	{
+		e.FieldStart("source")
+		s.Source.Encode(e)
+	}
+	{
+		e.FieldStart("uuid")
+		e.Str(s.UUID)
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.State.Set {
+			e.FieldStart("state")
+			s.State.Encode(e)
+		}
+	}
+	{
+		if s.StateDetails.Set {
+			e.FieldStart("stateDetails")
+			s.StateDetails.Encode(e)
+		}
+	}
+	{
+		if s.StateDetailsWithheld.Set {
+			e.FieldStart("stateDetailsWithheld")
+			s.StateDetailsWithheld.Encode(e)
+		}
+	}
+	{
+		if s.Health.Set {
+			e.FieldStart("health")
+			s.Health.Encode(e)
+		}
+	}
+	{
+		if s.ProjectNumber.Set {
+			e.FieldStart("projectNumber")
+			s.ProjectNumber.Encode(e)
+		}
+	}
+	{
+		if s.PoolUuid.Set {
+			e.FieldStart("poolUuid")
+			s.PoolUuid.Encode(e)
+		}
+	}
+	{
+		if s.PoolName.Set {
+			e.FieldStart("poolName")
+			s.PoolName.Encode(e)
+		}
+	}
+	{
+		if s.SvmUuid.Set {
+			e.FieldStart("svmUuid")
+			s.SvmUuid.Encode(e)
+		}
+	}
+	{
+		if s.SvmName.Set {
+			e.FieldStart("svmName")
+			s.SvmName.Encode(e)
+		}
+	}
+	{
+		if s.VolumePerformanceGroupUuid.Set {
+			e.FieldStart("volumePerformanceGroupUuid")
+			s.VolumePerformanceGroupUuid.Encode(e)
+		}
+	}
+	{
+		if s.SizeInBytes.Set {
+			e.FieldStart("sizeInBytes")
+			s.SizeInBytes.Encode(e)
+		}
+	}
+	{
+		if s.UsedBytes.Set {
+			e.FieldStart("usedBytes")
+			s.UsedBytes.Encode(e)
+		}
+	}
+	{
+		if s.Throughput.Set {
+			e.FieldStart("throughput")
+			s.Throughput.Encode(e)
+		}
+	}
+	{
+		if s.MountPath.Set {
+			e.FieldStart("mountPath")
+			s.MountPath.Encode(e)
+		}
+	}
+	{
+		if s.CreationToken.Set {
+			e.FieldStart("creationToken")
+			s.CreationToken.Encode(e)
+		}
+	}
+	{
+		if s.Protocols != nil {
+			e.FieldStart("protocols")
+			e.ArrStart()
+			for _, elem := range s.Protocols {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.SecurityStyle.Set {
+			e.FieldStart("securityStyle")
+			s.SecurityStyle.Encode(e)
+		}
+	}
+	{
+		if s.IsDataProtection.Set {
+			e.FieldStart("isDataProtection")
+			s.IsDataProtection.Encode(e)
+		}
+	}
+	{
+		if s.IsRegionalHa.Set {
+			e.FieldStart("isRegionalHa")
+			s.IsRegionalHa.Encode(e)
+		}
+	}
+	{
+		if s.Zone.Set {
+			e.FieldStart("zone")
+			s.Zone.Encode(e)
+		}
+	}
+	{
+		if s.SecondaryZone.Set {
+			e.FieldStart("secondaryZone")
+			s.SecondaryZone.Encode(e)
+		}
+	}
+	{
+		if s.SnapReserve.Set {
+			e.FieldStart("snapReserve")
+			s.SnapReserve.Encode(e)
+		}
+	}
+	{
+		if s.SnapshotDirectory.Set {
+			e.FieldStart("snapshotDirectory")
+			s.SnapshotDirectory.Encode(e)
+		}
+	}
+	{
+		if s.KerberosEnabled.Set {
+			e.FieldStart("kerberosEnabled")
+			s.KerberosEnabled.Encode(e)
+		}
+	}
+	{
+		if s.LdapEnabled.Set {
+			e.FieldStart("ldapEnabled")
+			s.LdapEnabled.Encode(e)
+		}
+	}
+	{
+		if s.AutoTieringEnabled.Set {
+			e.FieldStart("autoTieringEnabled")
+			s.AutoTieringEnabled.Encode(e)
+		}
+	}
+	{
+		if s.HotTierSizeGib.Set {
+			e.FieldStart("hotTierSizeGib")
+			s.HotTierSizeGib.Encode(e)
+		}
+	}
+	{
+		if s.ColdTierSizeGib.Set {
+			e.FieldStart("coldTierSizeGib")
+			s.ColdTierSizeGib.Encode(e)
+		}
+	}
+	{
+		if s.ClonesSharedBytes.Set {
+			e.FieldStart("clonesSharedBytes")
+			s.ClonesSharedBytes.Encode(e)
+		}
+	}
+	{
+		if s.BackupVaultUuid.Set {
+			e.FieldStart("backupVaultUuid")
+			s.BackupVaultUuid.Encode(e)
+		}
+	}
+	{
+		if s.BackupPolicyUuid.Set {
+			e.FieldStart("backupPolicyUuid")
+			s.BackupPolicyUuid.Encode(e)
+		}
+	}
+	{
+		if s.ScheduledBackupEnabled.Set {
+			e.FieldStart("scheduledBackupEnabled")
+			s.ScheduledBackupEnabled.Encode(e)
+		}
+	}
+	{
+		if s.RestrictedActions != nil {
+			e.FieldStart("restrictedActions")
+			e.ArrStart()
+			for _, elem := range s.RestrictedActions {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.ExternalUuid.Set {
+			e.FieldStart("externalUuid")
+			s.ExternalUuid.Encode(e)
+		}
+	}
+	{
+		e.FieldStart("createdAt")
+		json.EncodeDateTime(e, s.CreatedAt)
+	}
+	{
+		e.FieldStart("updatedAt")
+		json.EncodeDateTime(e, s.UpdatedAt)
+	}
+	{
+		e.FieldStart("deletedAt")
+		s.DeletedAt.Encode(e, json.EncodeDateTime)
+	}
+}
+
+var jsonFieldsNameOfOpsVolumeV1 = [42]string{
+	0:  "resourceType",
+	1:  "source",
+	2:  "uuid",
+	3:  "name",
+	4:  "description",
+	5:  "state",
+	6:  "stateDetails",
+	7:  "stateDetailsWithheld",
+	8:  "health",
+	9:  "projectNumber",
+	10: "poolUuid",
+	11: "poolName",
+	12: "svmUuid",
+	13: "svmName",
+	14: "volumePerformanceGroupUuid",
+	15: "sizeInBytes",
+	16: "usedBytes",
+	17: "throughput",
+	18: "mountPath",
+	19: "creationToken",
+	20: "protocols",
+	21: "securityStyle",
+	22: "isDataProtection",
+	23: "isRegionalHa",
+	24: "zone",
+	25: "secondaryZone",
+	26: "snapReserve",
+	27: "snapshotDirectory",
+	28: "kerberosEnabled",
+	29: "ldapEnabled",
+	30: "autoTieringEnabled",
+	31: "hotTierSizeGib",
+	32: "coldTierSizeGib",
+	33: "clonesSharedBytes",
+	34: "backupVaultUuid",
+	35: "backupPolicyUuid",
+	36: "scheduledBackupEnabled",
+	37: "restrictedActions",
+	38: "externalUuid",
+	39: "createdAt",
+	40: "updatedAt",
+	41: "deletedAt",
+}
+
+// Decode decodes OpsVolumeV1 from json.
+func (s *OpsVolumeV1) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode OpsVolumeV1 to nil")
+	}
+	var requiredBitSet [6]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "resourceType":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.ResourceType = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resourceType\"")
+			}
+		case "source":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				if err := s.Source.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"source\"")
+			}
+		case "uuid":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Str()
+				s.UUID = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"uuid\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "state":
+			if err := func() error {
+				s.State.Reset()
+				if err := s.State.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"state\"")
+			}
+		case "stateDetails":
+			if err := func() error {
+				s.StateDetails.Reset()
+				if err := s.StateDetails.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetails\"")
+			}
+		case "stateDetailsWithheld":
+			if err := func() error {
+				s.StateDetailsWithheld.Reset()
+				if err := s.StateDetailsWithheld.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stateDetailsWithheld\"")
+			}
+		case "health":
+			if err := func() error {
+				s.Health.Reset()
+				if err := s.Health.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"health\"")
+			}
+		case "projectNumber":
+			if err := func() error {
+				s.ProjectNumber.Reset()
+				if err := s.ProjectNumber.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectNumber\"")
+			}
+		case "poolUuid":
+			if err := func() error {
+				s.PoolUuid.Reset()
+				if err := s.PoolUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"poolUuid\"")
+			}
+		case "poolName":
+			if err := func() error {
+				s.PoolName.Reset()
+				if err := s.PoolName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"poolName\"")
+			}
+		case "svmUuid":
+			if err := func() error {
+				s.SvmUuid.Reset()
+				if err := s.SvmUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svmUuid\"")
+			}
+		case "svmName":
+			if err := func() error {
+				s.SvmName.Reset()
+				if err := s.SvmName.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"svmName\"")
+			}
+		case "volumePerformanceGroupUuid":
+			if err := func() error {
+				s.VolumePerformanceGroupUuid.Reset()
+				if err := s.VolumePerformanceGroupUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"volumePerformanceGroupUuid\"")
+			}
+		case "sizeInBytes":
+			if err := func() error {
+				s.SizeInBytes.Reset()
+				if err := s.SizeInBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sizeInBytes\"")
+			}
+		case "usedBytes":
+			if err := func() error {
+				s.UsedBytes.Reset()
+				if err := s.UsedBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"usedBytes\"")
+			}
+		case "throughput":
+			if err := func() error {
+				s.Throughput.Reset()
+				if err := s.Throughput.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"throughput\"")
+			}
+		case "mountPath":
+			if err := func() error {
+				s.MountPath.Reset()
+				if err := s.MountPath.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"mountPath\"")
+			}
+		case "creationToken":
+			if err := func() error {
+				s.CreationToken.Reset()
+				if err := s.CreationToken.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"creationToken\"")
+			}
+		case "protocols":
+			if err := func() error {
+				s.Protocols = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.Protocols = append(s.Protocols, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"protocols\"")
+			}
+		case "securityStyle":
+			if err := func() error {
+				s.SecurityStyle.Reset()
+				if err := s.SecurityStyle.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"securityStyle\"")
+			}
+		case "isDataProtection":
+			if err := func() error {
+				s.IsDataProtection.Reset()
+				if err := s.IsDataProtection.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isDataProtection\"")
+			}
+		case "isRegionalHa":
+			if err := func() error {
+				s.IsRegionalHa.Reset()
+				if err := s.IsRegionalHa.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"isRegionalHa\"")
+			}
+		case "zone":
+			if err := func() error {
+				s.Zone.Reset()
+				if err := s.Zone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"zone\"")
+			}
+		case "secondaryZone":
+			if err := func() error {
+				s.SecondaryZone.Reset()
+				if err := s.SecondaryZone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"secondaryZone\"")
+			}
+		case "snapReserve":
+			if err := func() error {
+				s.SnapReserve.Reset()
+				if err := s.SnapReserve.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapReserve\"")
+			}
+		case "snapshotDirectory":
+			if err := func() error {
+				s.SnapshotDirectory.Reset()
+				if err := s.SnapshotDirectory.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshotDirectory\"")
+			}
+		case "kerberosEnabled":
+			if err := func() error {
+				s.KerberosEnabled.Reset()
+				if err := s.KerberosEnabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"kerberosEnabled\"")
+			}
+		case "ldapEnabled":
+			if err := func() error {
+				s.LdapEnabled.Reset()
+				if err := s.LdapEnabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ldapEnabled\"")
+			}
+		case "autoTieringEnabled":
+			if err := func() error {
+				s.AutoTieringEnabled.Reset()
+				if err := s.AutoTieringEnabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"autoTieringEnabled\"")
+			}
+		case "hotTierSizeGib":
+			if err := func() error {
+				s.HotTierSizeGib.Reset()
+				if err := s.HotTierSizeGib.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hotTierSizeGib\"")
+			}
+		case "coldTierSizeGib":
+			if err := func() error {
+				s.ColdTierSizeGib.Reset()
+				if err := s.ColdTierSizeGib.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"coldTierSizeGib\"")
+			}
+		case "clonesSharedBytes":
+			if err := func() error {
+				s.ClonesSharedBytes.Reset()
+				if err := s.ClonesSharedBytes.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"clonesSharedBytes\"")
+			}
+		case "backupVaultUuid":
+			if err := func() error {
+				s.BackupVaultUuid.Reset()
+				if err := s.BackupVaultUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupVaultUuid\"")
+			}
+		case "backupPolicyUuid":
+			if err := func() error {
+				s.BackupPolicyUuid.Reset()
+				if err := s.BackupPolicyUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backupPolicyUuid\"")
+			}
+		case "scheduledBackupEnabled":
+			if err := func() error {
+				s.ScheduledBackupEnabled.Reset()
+				if err := s.ScheduledBackupEnabled.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"scheduledBackupEnabled\"")
+			}
+		case "restrictedActions":
+			if err := func() error {
+				s.RestrictedActions = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.RestrictedActions = append(s.RestrictedActions, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"restrictedActions\"")
+			}
+		case "externalUuid":
+			if err := func() error {
+				s.ExternalUuid.Reset()
+				if err := s.ExternalUuid.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"externalUuid\"")
+			}
+		case "createdAt":
+			requiredBitSet[4] |= 1 << 7
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.CreatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdAt\"")
+			}
+		case "updatedAt":
+			requiredBitSet[5] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.UpdatedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "deletedAt":
+			requiredBitSet[5] |= 1 << 1
+			if err := func() error {
+				if err := s.DeletedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"deletedAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode OpsVolumeV1")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [6]uint8{
+		0b00000111,
+		0b00000000,
+		0b00000000,
+		0b00000000,
+		0b10000000,
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfOpsVolumeV1) {
+					name = jsonFieldsNameOfOpsVolumeV1[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *OpsVolumeV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OpsVolumeV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -11063,6 +21677,171 @@ func (s OptNilString) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptNilString) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsCmekServiceAccountV1 as json.
+func (o OptOpsCmekServiceAccountV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes OpsCmekServiceAccountV1 from json.
+func (o *OptOpsCmekServiceAccountV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptOpsCmekServiceAccountV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptOpsCmekServiceAccountV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptOpsCmekServiceAccountV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsListFiltersV1 as json.
+func (o OptOpsListFiltersV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes OpsListFiltersV1 from json.
+func (o *OptOpsListFiltersV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptOpsListFiltersV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptOpsListFiltersV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptOpsListFiltersV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsPendingWorkflowTaskV1 as json.
+func (o OptOpsPendingWorkflowTaskV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes OpsPendingWorkflowTaskV1 from json.
+func (o *OptOpsPendingWorkflowTaskV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptOpsPendingWorkflowTaskV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptOpsPendingWorkflowTaskV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptOpsPendingWorkflowTaskV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsPoolCertificateRotationV1 as json.
+func (o OptOpsPoolCertificateRotationV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes OpsPoolCertificateRotationV1 from json.
+func (o *OptOpsPoolCertificateRotationV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptOpsPoolCertificateRotationV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptOpsPoolCertificateRotationV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptOpsPoolCertificateRotationV1) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes OpsServiceAccountKeyRotationV1 as json.
+func (o OptOpsServiceAccountKeyRotationV1) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes OpsServiceAccountKeyRotationV1 from json.
+func (o *OptOpsServiceAccountKeyRotationV1) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptOpsServiceAccountKeyRotationV1 to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptOpsServiceAccountKeyRotationV1) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptOpsServiceAccountKeyRotationV1) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -23905,6 +34684,272 @@ func (s *V1GetExternalClusterUnprocessableEntity) UnmarshalJSON(data []byte) err
 	return s.Decode(d)
 }
 
+// Encode encodes V1GetInternalResourceBadRequest as json.
+func (s *V1GetInternalResourceBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceBadRequest from json.
+func (s *V1GetInternalResourceBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceConflict as json.
+func (s *V1GetInternalResourceConflict) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceConflict from json.
+func (s *V1GetInternalResourceConflict) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceConflict to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceConflict(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceConflict) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceConflict) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceForbidden as json.
+func (s *V1GetInternalResourceForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceForbidden from json.
+func (s *V1GetInternalResourceForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceInternalServerError as json.
+func (s *V1GetInternalResourceInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceInternalServerError from json.
+func (s *V1GetInternalResourceInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceNotFound as json.
+func (s *V1GetInternalResourceNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceNotFound from json.
+func (s *V1GetInternalResourceNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceNotImplemented as json.
+func (s *V1GetInternalResourceNotImplemented) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceNotImplemented from json.
+func (s *V1GetInternalResourceNotImplemented) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceNotImplemented to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceNotImplemented(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceNotImplemented) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceNotImplemented) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1GetInternalResourceUnauthorized as json.
+func (s *V1GetInternalResourceUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1GetInternalResourceUnauthorized from json.
+func (s *V1GetInternalResourceUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1GetInternalResourceUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1GetInternalResourceUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1GetInternalResourceUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1GetInternalResourceUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes V1GetMultipleReplicationsByExternalUUIDBadRequest as json.
 func (s *V1GetMultipleReplicationsByExternalUUIDBadRequest) Encode(e *jx.Encoder) {
 	unwrapped := (*Error)(s)
@@ -26809,6 +37854,234 @@ func (s *V1ListInterclusterLifsUnauthorized) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *V1ListInterclusterLifsUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesBadRequest as json.
+func (s *V1ListInternalResourcesBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesBadRequest from json.
+func (s *V1ListInternalResourcesBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesBadRequest to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesForbidden as json.
+func (s *V1ListInternalResourcesForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesForbidden from json.
+func (s *V1ListInternalResourcesForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesForbidden to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesInternalServerError as json.
+func (s *V1ListInternalResourcesInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesInternalServerError from json.
+func (s *V1ListInternalResourcesInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesInternalServerError to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesNotFound as json.
+func (s *V1ListInternalResourcesNotFound) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesNotFound from json.
+func (s *V1ListInternalResourcesNotFound) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesNotFound to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesNotFound(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesNotFound) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesNotFound) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesNotImplemented as json.
+func (s *V1ListInternalResourcesNotImplemented) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesNotImplemented from json.
+func (s *V1ListInternalResourcesNotImplemented) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesNotImplemented to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesNotImplemented(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesNotImplemented) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesNotImplemented) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes V1ListInternalResourcesUnauthorized as json.
+func (s *V1ListInternalResourcesUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*Error)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes V1ListInternalResourcesUnauthorized from json.
+func (s *V1ListInternalResourcesUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode V1ListInternalResourcesUnauthorized to nil")
+	}
+	var unwrapped Error
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = V1ListInternalResourcesUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *V1ListInternalResourcesUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *V1ListInternalResourcesUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

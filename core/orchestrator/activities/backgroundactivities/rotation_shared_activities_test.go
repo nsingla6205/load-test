@@ -8442,3 +8442,26 @@ func TestRotateVcpToVsaCertificateActivity_removeCertificateFromVSA_SVMNotFoundF
 		mockSE.AssertExpectations(tt)
 	})
 }
+
+func TestCertificateIDTimestamp(t *testing.T) {
+	t.Run("WhenIDIsARotatedCertificate", func(t *testing.T) {
+		now := time.Date(2026, 9, 1, 10, 20, 30, 0, time.UTC)
+		got, ok := CertificateIDTimestamp(rotatedCertificateID("gcnv-deployment", now))
+		require.True(t, ok)
+		assert.Equal(t, now, got)
+	})
+
+	t.Run("WhenIDHasQualifiers", func(t *testing.T) {
+		now := time.Date(2026, 9, 1, 10, 20, 30, 0, time.UTC)
+		got, ok := CertificateIDTimestamp(rotatedCertificateID("gcnv-deployment", now, "expert"))
+		require.True(t, ok)
+		assert.Equal(t, now, got)
+	})
+
+	t.Run("WhenIDIsFromPoolCreate", func(t *testing.T) {
+		for _, id := range []string{"", "gcnv-deployment-cert", "20260901-102030", "x-2026090-102030"} {
+			_, ok := CertificateIDTimestamp(id)
+			assert.False(t, ok, id)
+		}
+	})
+}

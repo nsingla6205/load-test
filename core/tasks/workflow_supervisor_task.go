@@ -288,6 +288,23 @@ func (r *workflowSupervisorTaskRunner) scanNewStateJobs(ctx context.Context, job
 	})
 }
 
+// IsSequencerBackedJobType reports whether jobs of this type are queued in the
+// per-pool SequenceWorkflow before their own child workflow starts.
+func IsSequencerBackedJobType(jobType string) bool {
+	_, ok := sequencerBackedJobTypes[datamodel.JobType(jobType)]
+	return ok
+}
+
+// SequenceWorkflowID returns the id of the per-pool SequenceWorkflow that
+// queues sequencer-backed jobs, from the pool's vendor id and name.
+func SequenceWorkflowID(accountID int64, poolVendorID, poolName string) (string, error) {
+	location, err := utils.GetLocationFromVendorID(poolVendorID)
+	if err != nil {
+		return "", fmt.Errorf("resolve location: %w", err)
+	}
+	return workflows.GenerateControlWorkflowID(accountID, location, poolName), nil
+}
+
 // getWorkflowTimeoutForJobType returns the workflow timeout duration for the given job type.
 // Eligible PROCESSING job types currently share the global VCP workflow timeout.
 func getWorkflowTimeoutForJobType(_ string) time.Duration {
@@ -506,12 +523,7 @@ func (r *workflowSupervisorTaskRunner) sequenceWorkflowIDForJob(ctx context.Cont
 		return "", fmt.Errorf("load pool: %w", err)
 	}
 
-	location, err := utils.GetLocationFromVendorID(pool.VendorID)
-	if err != nil {
-		return "", fmt.Errorf("resolve location: %w", err)
-	}
-
-	return workflows.GenerateControlWorkflowID(job.AccountID.Int64, location, pool.Name), nil
+	return SequenceWorkflowID(job.AccountID.Int64, pool.VendorID, pool.Name)
 }
 
 // markJobAsError updates the job state and detail to record a timeout failure.

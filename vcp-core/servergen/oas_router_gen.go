@@ -905,24 +905,144 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 						}
 
-					case 'n': // Prefix: "nterclusterLif"
+					case 'n': // Prefix: "nter"
 
-						if l := len("nterclusterLif"); len(elem) >= l && elem[0:l] == "nterclusterLif" {
+						if l := len("nter"); len(elem) >= l && elem[0:l] == "nter" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
 						if len(elem) == 0 {
-							// Leaf node.
-							switch r.Method {
-							case "GET":
-								s.handleV1ListInterclusterLifsRequest([0]string{}, elemIsEscaped, w, r)
-							default:
-								s.notAllowed(w, r, "GET")
+							break
+						}
+						switch elem[0] {
+						case 'c': // Prefix: "clusterLif"
+
+							if l := len("clusterLif"); len(elem) >= l && elem[0:l] == "clusterLif" {
+								elem = elem[l:]
+							} else {
+								break
 							}
 
-							return
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "GET":
+									s.handleV1ListInterclusterLifsRequest([0]string{}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET")
+								}
+
+								return
+							}
+
+						case 'n': // Prefix: "nal/projects/"
+
+							if l := len("nal/projects/"); len(elem) >= l && elem[0:l] == "nal/projects/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "projectNumber"
+							// Match until "/"
+							idx := strings.IndexByte(elem, '/')
+							if idx < 0 {
+								idx = len(elem)
+							}
+							args[0] = elem[:idx]
+							elem = elem[idx:]
+
+							if len(elem) == 0 {
+								break
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/locations/"
+
+								if l := len("/locations/"); len(elem) >= l && elem[0:l] == "/locations/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "locationId"
+								// Match until "/"
+								idx := strings.IndexByte(elem, '/')
+								if idx < 0 {
+									idx = len(elem)
+								}
+								args[1] = elem[:idx]
+								elem = elem[idx:]
+
+								if len(elem) == 0 {
+									break
+								}
+								switch elem[0] {
+								case '/': // Prefix: "/resources:"
+
+									if l := len("/resources:"); len(elem) >= l && elem[0:l] == "/resources:" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										break
+									}
+									switch elem[0] {
+									case 'g': // Prefix: "get"
+
+										if l := len("get"); len(elem) >= l && elem[0:l] == "get" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch r.Method {
+											case "POST":
+												s.handleV1GetInternalResourceRequest([2]string{
+													args[0],
+													args[1],
+												}, elemIsEscaped, w, r)
+											default:
+												s.notAllowed(w, r, "POST")
+											}
+
+											return
+										}
+
+									case 'l': // Prefix: "list"
+
+										if l := len("list"); len(elem) >= l && elem[0:l] == "list" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch r.Method {
+											case "POST":
+												s.handleV1ListInternalResourcesRequest([2]string{
+													args[0],
+													args[1],
+												}, elemIsEscaped, w, r)
+											default:
+												s.notAllowed(w, r, "POST")
+											}
+
+											return
+										}
+
+									}
+
+								}
+
+							}
+
 						}
 
 					case 'p': // Prefix: "prange"
@@ -2666,28 +2786,150 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 						}
 
-					case 'n': // Prefix: "nterclusterLif"
+					case 'n': // Prefix: "nter"
 
-						if l := len("nterclusterLif"); len(elem) >= l && elem[0:l] == "nterclusterLif" {
+						if l := len("nter"); len(elem) >= l && elem[0:l] == "nter" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
 						if len(elem) == 0 {
-							// Leaf node.
-							switch method {
-							case "GET":
-								r.name = V1ListInterclusterLifsOperation
-								r.summary = "Describe all intercluster LIFs"
-								r.operationID = "v1_listInterclusterLifs"
-								r.pathPattern = "/v1/interclusterLif"
-								r.args = args
-								r.count = 0
-								return r, true
-							default:
-								return
+							break
+						}
+						switch elem[0] {
+						case 'c': // Prefix: "clusterLif"
+
+							if l := len("clusterLif"); len(elem) >= l && elem[0:l] == "clusterLif" {
+								elem = elem[l:]
+							} else {
+								break
 							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "GET":
+									r.name = V1ListInterclusterLifsOperation
+									r.summary = "Describe all intercluster LIFs"
+									r.operationID = "v1_listInterclusterLifs"
+									r.pathPattern = "/v1/interclusterLif"
+									r.args = args
+									r.count = 0
+									return r, true
+								default:
+									return
+								}
+							}
+
+						case 'n': // Prefix: "nal/projects/"
+
+							if l := len("nal/projects/"); len(elem) >= l && elem[0:l] == "nal/projects/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "projectNumber"
+							// Match until "/"
+							idx := strings.IndexByte(elem, '/')
+							if idx < 0 {
+								idx = len(elem)
+							}
+							args[0] = elem[:idx]
+							elem = elem[idx:]
+
+							if len(elem) == 0 {
+								break
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/locations/"
+
+								if l := len("/locations/"); len(elem) >= l && elem[0:l] == "/locations/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "locationId"
+								// Match until "/"
+								idx := strings.IndexByte(elem, '/')
+								if idx < 0 {
+									idx = len(elem)
+								}
+								args[1] = elem[:idx]
+								elem = elem[idx:]
+
+								if len(elem) == 0 {
+									break
+								}
+								switch elem[0] {
+								case '/': // Prefix: "/resources:"
+
+									if l := len("/resources:"); len(elem) >= l && elem[0:l] == "/resources:" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										break
+									}
+									switch elem[0] {
+									case 'g': // Prefix: "get"
+
+										if l := len("get"); len(elem) >= l && elem[0:l] == "get" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch method {
+											case "POST":
+												r.name = V1GetInternalResourceOperation
+												r.summary = "Get one resource from the ops inventory (read-only, SRE)"
+												r.operationID = "v1_getInternalResource"
+												r.pathPattern = "/v1/internal/projects/{projectNumber}/locations/{locationId}/resources:get"
+												r.args = args
+												r.count = 2
+												return r, true
+											default:
+												return
+											}
+										}
+
+									case 'l': // Prefix: "list"
+
+										if l := len("list"); len(elem) >= l && elem[0:l] == "list" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch method {
+											case "POST":
+												r.name = V1ListInternalResourcesOperation
+												r.summary = "List resources in the ops inventory (read-only, SRE)"
+												r.operationID = "v1_listInternalResources"
+												r.pathPattern = "/v1/internal/projects/{projectNumber}/locations/{locationId}/resources:list"
+												r.args = args
+												r.count = 2
+												return r, true
+											default:
+												return
+											}
+										}
+
+									}
+
+								}
+
+							}
+
 						}
 
 					case 'p': // Prefix: "prange"

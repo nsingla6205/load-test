@@ -207,6 +207,34 @@ func encodeV1ForcePoolCertificateRotationRequest(
 	return nil
 }
 
+func encodeV1GetInternalResourceRequest(
+	req *OpsGetResourceRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeV1ListInternalResourcesRequest(
+	req *OpsListResourcesRequestV1,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeV1OnboardExternalClusterRequest(
 	req *ExternalClusterOnboardRequestV1,
 	r *http.Request,
