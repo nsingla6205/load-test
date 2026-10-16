@@ -1,0 +1,12 @@
+{
+  "_comment": "Name this file <bucket_name>.json (falls back to <version>.json when bucket_name is absent). Run mode, image type, environment are chosen in the UI. image_name = VSA, mediator_image_name = Mediator. version drives the source COT layout and can be the parent version (e.g. 9.19.1) when patch artifacts live under a parent-version folder. bucket_name is the destination-side patch identifier used for GCNV/<bucket_name>/... folders (falls back to version when omitted). Optional: vlm_worker_path, vlm_worker_tag for VLM Worker Image Push workflow.",
+  "version": "9.19.1P2X6",
+  "image_name": "x-9-19-1p2x6",
+  "mediator_image_name": "cvo-mediator-x-9-19-1p2x6",
+  "bundle_name": "9.19.1P2_RBAC",
+  "upgrade_release_bundle_path": "GCNV_released_bundle/9.19.1P2_RBAC",
+  "upgrade_file_path": "GCNV/9.19.1P2X6/cot.image.ONTAP-9.19.1P2X6.tgz",
+  "vlm_worker_path": "VLM/R9.19.1Px/vlm-worker/R9.19.1Px_8239150/vlm-worker.tar.gz",
+  "vlm_worker_tag": "R9.19.1Px_8239150",
+  "rbac_folder_path": "VLM/R9.19.1x/RBAC/R9.19.1x_8292143"
+}
