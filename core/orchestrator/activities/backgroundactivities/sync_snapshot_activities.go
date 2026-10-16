@@ -20,6 +20,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/middleware/log"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 	"go.temporal.io/sdk/activity"
@@ -35,23 +36,25 @@ const (
 )
 
 var (
-	snapshotSyncChunkSize              = env.GetInt("CVS_SNAPSHOT_SYNC_CHUNK_SIZE", 200)
-	hydrationEnabled                   = env.GetBool("GCP_HYDRATE_ENABLED", true)
-	snapshotSyncMaxConcurrency         = env.GetInt("SNAPSHOT_SYNC_MAX_CONCURRENCY", 20)
-	ontapSnapshotFetchConcurrencyLimit = env.GetInt("ONTAP_SNAPSHOT_FETCH_MAX_CONCURRENCY", 5)
+	snapshotSyncChunkSize                = env.GetInt("CVS_SNAPSHOT_SYNC_CHUNK_SIZE", 200)
+	hydrationEnabled                     = env.GetBool("GCP_HYDRATE_ENABLED", true)
+	deleteStaleAdHocSnapshots            = env.GetBool("SNAPSHOT_SYNC_DELETE_STALE_ADHOC", true)
+	snapshotSyncMaxConcurrency           = env.GetInt("SNAPSHOT_SYNC_MAX_CONCURRENCY", 20)
+	ontapSnapshotFetchConcurrencyLimit   = env.GetInt("ONTAP_SNAPSHOT_FETCH_MAX_CONCURRENCY", 5)
+	ontapSnapshotConfirmConcurrencyLimit = env.GetInt("ONTAP_SNAPSHOT_CONFIRM_MAX_CONCURRENCY", 20)
 
 	scheduledRegExp  = regexp.MustCompile(`^(hourly|daily|weekly|monthly)\..*$`)
 	snapmirrorRegExp = regexp.MustCompile(`^snapmirror\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_.*$`)
 
-	GetOntapRestProviderForPool           = _getOntapRestProviderForPool
-	GetOntapRestProviderForPoolFastConn   = _getOntapRestProviderForPoolFastConn
-	filterOntapVolumesAndSnapshots        = _filterOntapVolumesAndSnapshots
-	processSnapshotSync                   = _processSnapshotSync
-	syncDeletedSnapshotsToDatabase        = _syncDeletedSnapshotsToDatabase
-	syncNewSnapshotsToDatabase            = _syncNewSnapshotsToDatabase
-	syncUpdatedSnapshotsToDatabase        = _syncUpdatedSnapshotsToDatabase
-	syncWronglyDeletedSnapshotsToDatabase = _syncWronglyDeletedSnapshotsToDatabase
-	hydrateBatchSnapshotsToCCFE           = hydrationActivities.HydrateBatchSnapshotstoCCFE
+	GetOntapRestProviderForPool         = _getOntapRestProviderForPool
+	GetOntapRestProviderForPoolFastConn = _getOntapRestProviderForPoolFastConn
+	filterOntapVolumesAndSnapshots      = _filterOntapVolumesAndSnapshots
+	processSnapshotSync                 = _processSnapshotSync
+	syncDeletedSnapshotsToDatabase      = _syncDeletedSnapshotsToDatabase
+	syncNewSnapshotsToDatabase          = _syncNewSnapshotsToDatabase
+	syncUpdatedSnapshotsToDatabase      = _syncUpdatedSnapshotsToDatabase
+	confirmSnapshotsGoneFromOntap       = _confirmSnapshotsGoneFromOntap
+	hydrateBatchSnapshotsToCCFE         = hydrationActivities.HydrateBatchSnapshotstoCCFE
 )
 
 type SyncSnapshotActivity struct {
@@ -161,62 +164,29 @@ func _filterOntapVolumesAndSnapshots(volumes []*vsa.Volume, snapshots []*vsa.Sna
 	return volumeMap, filteredSnapshots
 }
 
-func _syncWronglyDeletedSnapshotsToDatabase(ctx context.Context, wronglyDeletedSnapshots []string, wronglyDeletedSnapshotsMap map[string]*vsa.Snapshot, se database.Storage, dbSnapshotsMap map[string]*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
-	logger := util.GetLogger(ctx)
-	var externalUUIDs []string
-	for _, key := range wronglyDeletedSnapshots {
-		snapshot := wronglyDeletedSnapshotsMap[key]
-		externalUUIDs = append(externalUUIDs, snapshot.ExternalUUID)
-	}
-	if len(externalUUIDs) == 0 {
-		return nil, nil
-	}
-	allUndeleted := []*datamodel.Snapshot{}
-	for i := 0; i < len(externalUUIDs); i += snapshotSyncChunkSize {
-		end := i + snapshotSyncChunkSize
-		if end > len(externalUUIDs) {
-			end = len(externalUUIDs)
-		}
-		chunk := externalUUIDs[i:end]
-		snapshotsToUnDelete, err := se.BatchGetWronglyDeletedSnapshots(ctx, chunk)
-		if err != nil {
-			logger.Errorf("Failed to get wrongly deleted snapshots: %v", err)
-			return nil, err
-		}
-		if len(snapshotsToUnDelete) == 0 {
-			continue
-		}
-		restored, err := se.BatchUnDeleteSnapshots(ctx, snapshotsToUnDelete)
-		if err != nil {
-			logger.Errorf("Failed to undelete snapshots: %v", err)
-			return nil, err
-		}
-		allUndeleted = append(allUndeleted, restored...)
-	}
-	return allUndeleted, nil
-}
-
 func _syncUpdatedSnapshotsToDatabase(ctx context.Context, updatedSnapshots []string, updatedSSMap map[string]*vsa.Snapshot, se database.Storage, dbSnapshotsMap map[string]*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	logger := util.GetLogger(ctx)
 	var snapshotsToUpdate []*datamodel.Snapshot
 	for _, key := range updatedSnapshots {
 		snapshot := updatedSSMap[key]
-		dbSnapshot := dbSnapshotsMap[snapshot.ExternalUUID]
-		if dbSnapshot == nil {
+		dbSnapshot := dbSnapshotsMap[key]
+		if snapshot == nil || dbSnapshot == nil {
 			continue
+		}
+		name := dbSnapshot.Name
+		if snapshot.Name != nil {
+			name = *snapshot.Name
 		}
 		dbSnap := &datamodel.Snapshot{
 			BaseModel: datamodel.BaseModel{
 				UUID: dbSnapshot.UUID,
 				ID:   dbSnapshot.ID,
 			},
-			Name: *snapshot.Name,
+			Name: name,
 			SnapshotAttributes: &datamodel.SnapshotAttributes{
 				SizeInBytes:            snapshot.SizeInBytes,
 				LogicalSizeUsedInBytes: snapshot.LogicalSizeUsedInBytes,
 			},
-			State:        dbSnapshot.State,
-			StateDetails: dbSnapshot.StateDetails,
 		}
 		dbSnap.SetExternalUUID(snapshot.ExternalUUID)
 		snapshotsToUpdate = append(snapshotsToUpdate, dbSnap)
@@ -240,11 +210,69 @@ func _syncUpdatedSnapshotsToDatabase(ctx context.Context, updatedSnapshots []str
 	return allUpdated, nil
 }
 
+type snapshotVolumeExternalKey struct {
+	volumeID     int64
+	externalUUID string
+}
+
+func existingSnapshotVolumeExternalKeys(ctx context.Context, se database.Storage, candidates []*datamodel.Snapshot) (map[snapshotVolumeExternalKey]struct{}, error) {
+	volumeIDs, externalUUIDs := uniqueSnapshotLookupKeys(candidates)
+	existing := make(map[snapshotVolumeExternalKey]struct{})
+	if len(volumeIDs) == 0 || len(externalUUIDs) == 0 {
+		return existing, nil
+	}
+
+	// Look up existing (volume_id, external_uuid) pairs in UUID chunks, with all candidate volume IDs each call.
+	chunkSize := snapshotSyncChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 200
+	}
+	for i := 0; i < len(externalUUIDs); i += chunkSize {
+		extEnd := i + chunkSize
+		if extEnd > len(externalUUIDs) {
+			extEnd = len(externalUUIDs)
+		}
+		pairs, err := se.ListSnapshotVolumeExternalUUIDs(ctx, volumeIDs, externalUUIDs[i:extEnd])
+		if err != nil {
+			return nil, err
+		}
+		for _, pair := range pairs {
+			existing[snapshotVolumeExternalKey{volumeID: pair.VolumeID, externalUUID: pair.ExternalUUID}] = struct{}{}
+		}
+	}
+	return existing, nil
+}
+
+func uniqueSnapshotLookupKeys(candidates []*datamodel.Snapshot) ([]int64, []string) {
+	seenVolumes := make(map[int64]struct{}, len(candidates))
+	seenExternal := make(map[string]struct{}, len(candidates))
+	volumeIDs := make([]int64, 0, len(candidates))
+	externalUUIDs := make([]string, 0, len(candidates))
+	for _, snapshot := range candidates {
+		externalUUID := snapshot.GetExternalUUID()
+		if externalUUID == "" {
+			continue
+		}
+		if _, ok := seenVolumes[snapshot.VolumeID]; !ok {
+			seenVolumes[snapshot.VolumeID] = struct{}{}
+			volumeIDs = append(volumeIDs, snapshot.VolumeID)
+		}
+		if _, ok := seenExternal[externalUUID]; !ok {
+			seenExternal[externalUUID] = struct{}{}
+			externalUUIDs = append(externalUUIDs, externalUUID)
+		}
+	}
+	return volumeIDs, externalUUIDs
+}
+
 func _syncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, newSSMap map[string]*vsa.Snapshot, se database.Storage, dbVolumeMap map[string]*datamodel.Volume, pool *datamodel.Pool) ([]*datamodel.Snapshot, error) {
 	logger := util.GetLogger(ctx)
-	var snapshotsToCreate []*datamodel.Snapshot
+	var candidates []*datamodel.Snapshot
 	for _, key := range newSnapshots {
 		snapshot := newSSMap[key]
+		if snapshot == nil || snapshot.Name == nil {
+			continue
+		}
 		vol := dbVolumeMap[snapshot.ExternalVolumeUUID]
 		if vol == nil {
 			continue
@@ -264,6 +292,28 @@ func _syncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, new
 			Type:         snapshot.Type,
 		}
 		dbSnap.SetExternalUUID(snapshot.ExternalUUID)
+		candidates = append(candidates, dbSnap)
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	existing, err := existingSnapshotVolumeExternalKeys(ctx, se, candidates)
+	if err != nil {
+		logger.Errorf("Failed to look up existing snapshots before insert: %v", err)
+		return nil, err
+	}
+
+	var snapshotsToCreate []*datamodel.Snapshot
+	for _, dbSnap := range candidates {
+		externalUUID := dbSnap.GetExternalUUID()
+		if externalUUID != "" {
+			key := snapshotVolumeExternalKey{volumeID: dbSnap.VolumeID, externalUUID: externalUUID}
+			if _, ok := existing[key]; ok {
+				logger.Infof("Skipped inserting snapshot %s on volume %d; a row already exists for external UUID %s", dbSnap.Name, dbSnap.VolumeID, externalUUID)
+				continue
+			}
+		}
 		snapshotsToCreate = append(snapshotsToCreate, dbSnap)
 	}
 	if len(snapshotsToCreate) == 0 {
@@ -296,12 +346,45 @@ func _syncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, new
 	return createdSnapshots, nil
 }
 
-func _syncDeletedSnapshotsToDatabase(ctx context.Context, deleteIDs []int64, se database.Storage) ([]*datamodel.Snapshot, error) {
+// snapshotsObservedForDelete returns the baseline rows selected for deletion, preserving the updated_at observed before the ONTAP read.
+func snapshotsObservedForDelete(dbSnapshots []*datamodel.Snapshot, deleteIDs []int64) []*datamodel.Snapshot {
+	if len(deleteIDs) == 0 {
+		return nil
+	}
+	byID := make(map[int64]*datamodel.Snapshot, len(dbSnapshots))
+	for _, snapshot := range dbSnapshots {
+		if snapshot == nil || snapshot.ID == 0 {
+			continue
+		}
+		byID[snapshot.ID] = snapshot
+	}
+	observed := make([]*datamodel.Snapshot, 0, len(deleteIDs))
+	for _, id := range deleteIDs {
+		snapshot, ok := byID[id]
+		if !ok {
+			continue
+		}
+		observed = append(observed, snapshot)
+	}
+	return observed
+}
+
+func _syncDeletedSnapshotsToDatabase(ctx context.Context, snapshots []*datamodel.Snapshot, se database.Storage) ([]*datamodel.Snapshot, error) {
 	logger := util.GetLogger(ctx)
+	if len(snapshots) == 0 {
+		return nil, nil
+	}
 	var deletedSnapshots []*datamodel.Snapshot
-	deleteChunks := utils.SplitIntSliceIntoChunks(deleteIDs, snapshotSyncChunkSize)
-	for _, deleteChunk := range deleteChunks {
-		deletedSnapshotChunk, err := se.BatchDeleteSnapshots(ctx, deleteChunk)
+	chunkSize := snapshotSyncChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 200
+	}
+	for i := 0; i < len(snapshots); i += chunkSize {
+		end := i + chunkSize
+		if end > len(snapshots) {
+			end = len(snapshots)
+		}
+		deletedSnapshotChunk, err := se.BatchDeleteReadySnapshotsIfUnchanged(ctx, snapshots[i:end])
 		if err != nil {
 			logger.Errorf("Failed to delete snapshots: %v", err)
 			return nil, err
@@ -309,6 +392,128 @@ func _syncDeletedSnapshotsToDatabase(ctx context.Context, deleteIDs []int64, se 
 		deletedSnapshots = append(deletedSnapshots, deletedSnapshotChunk...)
 	}
 	return deletedSnapshots, nil
+}
+
+// positiveConcurrency returns limit when positive, otherwise fallback.
+// A non-positive buffered channel capacity would deadlock every sender.
+func positiveConcurrency(limit, fallback int) int {
+	if limit <= 0 {
+		return fallback
+	}
+	return limit
+}
+
+// tryAcquireSemaphore acquires one semaphore slot, or returns false if ctx is done.
+// When true is returned the caller must release with `<-semaphore` (typically via defer).
+// If both a slot and cancellation are ready, cancellation wins so a cancelled activity does not
+// start more ONTAP work (Go select would otherwise choose non-deterministically).
+func tryAcquireSemaphore(ctx context.Context, semaphore chan struct{}) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+	}
+	select {
+	case semaphore <- struct{}{}:
+		// Re-check: slot and cancel can become ready together while waiting.
+		if ctx.Err() != nil {
+			<-semaphore
+			return false
+		}
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// _confirmSnapshotsGoneFromOntap keeps only candidates that ONTAP get-by-UUID reports as not found.
+// Snapshots that still exist, or whose existence cannot be confirmed, are skipped so sync does not
+// soft-delete on an incomplete or lagging list response.
+//
+// Concurrency notes:
+//   - Each results[i] is written by at most one goroutine (no mutex).
+//   - Semaphore acquire is cancellation-aware so queued workers do not block wg.Wait forever
+//     or issue GetSnapshot after the activity is cancelled.
+//   - In-flight GetSnapshot calls are not context-aware today; callers must treat a cancelled
+//     ctx after return as abort (do not apply a partial confirmed set).
+func _confirmSnapshotsGoneFromOntap(ctx context.Context, provider vsa.Provider, candidates []*datamodel.Snapshot) []*datamodel.Snapshot {
+	logger := util.GetLogger(ctx)
+	if len(candidates) == 0 || provider == nil {
+		return nil
+	}
+
+	maxConcurrency := positiveConcurrency(ontapSnapshotConfirmConcurrencyLimit, 20)
+	semaphore := make(chan struct{}, maxConcurrency)
+
+	type confirmResult struct {
+		snapshot *datamodel.Snapshot
+		gone     bool
+	}
+	results := make([]confirmResult, len(candidates))
+	var wg sync.WaitGroup
+	var completed int64
+	var mu sync.Mutex
+
+	safeRecordHeartbeat(ctx, fmt.Sprintf("confirming %d snapshot deletes against ONTAP (concurrency %d)", len(candidates), maxConcurrency))
+
+	for i, candidate := range candidates {
+		if candidate == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(idx int, snapshot *datamodel.Snapshot) {
+			defer wg.Done()
+			if !tryAcquireSemaphore(ctx, semaphore) {
+				return
+			}
+			defer func() { <-semaphore }()
+			if ctx.Err() != nil {
+				return
+			}
+
+			snapshotUUID := snapshot.GetExternalUUID()
+			volumeUUID := dbSnapshotVolumeExternalUUID(snapshot)
+			if snapshotUUID == "" || volumeUUID == "" {
+				logger.Warnf("Skipped delete confirmation for snapshot id %d: missing external UUID or volume UUID", snapshot.ID)
+				return
+			}
+
+			_, err := provider.GetSnapshot(snapshotUUID, volumeUUID)
+			if err == nil {
+				logger.Infof("Skipped deleting snapshot %s on volume %s; ONTAP get-by-UUID still found it", snapshotUUID, volumeUUID)
+				heartbeatConfirmProgress(ctx, &mu, &completed, len(candidates))
+				return
+			}
+			if customerrors.IsNotFoundErrForObjectTypeInChain(err, "Snapshot") {
+				results[idx] = confirmResult{snapshot: snapshot, gone: true}
+				heartbeatConfirmProgress(ctx, &mu, &completed, len(candidates))
+				return
+			}
+			logger.Warnf("Skipped deleting snapshot %s on volume %s; ONTAP get-by-UUID was inconclusive: %v", snapshotUUID, volumeUUID, err)
+			heartbeatConfirmProgress(ctx, &mu, &completed, len(candidates))
+		}(i, candidate)
+	}
+	wg.Wait()
+
+	confirmed := make([]*datamodel.Snapshot, 0, len(candidates))
+	for _, result := range results {
+		if result.gone && result.snapshot != nil {
+			confirmed = append(confirmed, result.snapshot)
+		}
+	}
+	return confirmed
+}
+
+// heartbeatConfirmProgress records a Temporal heartbeat every 50 completed confirms so long
+// delete-confirm waves do not look idle under activity heartbeat timeouts.
+func heartbeatConfirmProgress(ctx context.Context, mu *sync.Mutex, completed *int64, total int) {
+	mu.Lock()
+	*completed++
+	count := *completed
+	mu.Unlock()
+	if count%50 == 0 || count == int64(total) {
+		safeRecordHeartbeat(ctx, fmt.Sprintf("confirmed %d/%d snapshot deletes against ONTAP", count, total))
+	}
 }
 
 func _getOntapRestProviderForPool(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
@@ -415,22 +620,46 @@ func _getOntapRestProviderForPoolFastConn(ctx context.Context, se database.Stora
 	return provider, nil
 }
 
-func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Volume, ontapSnapshots []*vsa.Snapshot, dbVolumeMap map[string]*datamodel.Volume, dbSnapshots []*datamodel.Snapshot) (
-	newSSMap map[string]*vsa.Snapshot, updatedSSMap map[string]*vsa.Snapshot, wronglyDeletedSnapshotsMap map[string]*vsa.Snapshot,
-	newIDs []string, updatedIDs []string, deleteIDs []int64, wronglyDeletedIDs []string) {
+// snapshotNeedsSizeOrNameUpdate reports whether the ONTAP snapshot differs from the DB row in
+// size or name. Nil SnapshotAttributes is treated as needing an update so sync can heal the row.
+// A nil ONTAP name is ignored for the name comparison to avoid panics on incomplete list payloads.
+func snapshotNeedsSizeOrNameUpdate(dbSnapshot *datamodel.Snapshot, snapshot *vsa.Snapshot) bool {
+	if dbSnapshot == nil || snapshot == nil {
+		return false
+	}
+	if dbSnapshot.SnapshotAttributes == nil {
+		return true
+	}
+	if dbSnapshot.SnapshotAttributes.SizeInBytes != snapshot.SizeInBytes ||
+		dbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes != snapshot.LogicalSizeUsedInBytes {
+		return true
+	}
+	if snapshot.Name != nil && dbSnapshot.Name != *snapshot.Name {
+		return true
+	}
+	return false
+}
+
+func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Volume, ontapSnapshots []*vsa.Snapshot, dbVolumeMap map[string]*datamodel.Volume, dbSnapshots []*datamodel.Snapshot, snapshotFetchSucceeded map[string]struct{}) (
+	newSSMap map[string]*vsa.Snapshot, updatedSSMap map[string]*vsa.Snapshot,
+	newIDs []string, updatedIDs []string, deleteIDs []int64) {
 	logger := util.GetLogger(ctx)
 
 	dbSnapshotMap := make(map[string]*datamodel.Snapshot, len(dbSnapshots))
 	dbSnapshotExternalUUIDMap := make(map[string]struct{}, len(dbSnapshots))
 	for _, dbSnapshot := range dbSnapshots {
+		volumeExternalUUID := dbSnapshotVolumeExternalUUID(dbSnapshot)
+		if volumeExternalUUID == "" {
+			logger.Warn("Skipped snapshot during sync - database volume is missing.")
+			continue
+		}
 		dbSnapshotExternalUUIDMap[dbSnapshot.GetExternalUUID()] = struct{}{}
-		dbSnapshotMap[dbSnapshot.GetExternalUUID()+"."+dbSnapshot.Volume.VolumeAttributes.ExternalUUID] = dbSnapshot
+		dbSnapshotMap[dbSnapshot.GetExternalUUID()+"."+volumeExternalUUID] = dbSnapshot
 	}
 
 	newSSMap = make(map[string]*vsa.Snapshot, len(ontapSnapshots))
 	updatedSSMap = make(map[string]*vsa.Snapshot, len(ontapSnapshots))
 	existingSSMap := make(map[string]*vsa.Snapshot, len(dbSnapshotMap))
-	wronglyDeletedSnapshotsMap = make(map[string]*vsa.Snapshot, len(ontapSnapshots))
 
 	for _, snapshot := range ontapSnapshots {
 		key := snapshot.ExternalUUID + "." + snapshot.ExternalVolumeUUID
@@ -438,7 +667,7 @@ func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Vo
 		if dbSnapshot, ok := dbSnapshotMap[key]; ok {
 			existingSSMap[key] = snapshot
 
-			if dbSnapshot.SnapshotAttributes.SizeInBytes != snapshot.SizeInBytes || dbSnapshot.SnapshotAttributes.LogicalSizeUsedInBytes != snapshot.LogicalSizeUsedInBytes || dbSnapshot.Name != *snapshot.Name {
+			if snapshotNeedsSizeOrNameUpdate(dbSnapshot, snapshot) {
 				updatedSSMap[key] = snapshot
 				updatedIDs = append(updatedIDs, key)
 			}
@@ -452,39 +681,46 @@ func _processSnapshotSync(ctx context.Context, ontapVolumeMap map[string]*vsa.Vo
 			if (vol.Type != nil && *vol.Type == "dp") || snapshot.Type != SnapshotTypeAdHoc || isCloned {
 				newSSMap[key] = snapshot
 				newIDs = append(newIDs, key)
-			} else {
-				wronglyDeletedSnapshotsMap[key] = snapshot
-				wronglyDeletedIDs = append(wronglyDeletedIDs, key)
 			}
 		}
 	}
 
 	for _, dbSnapshot := range dbSnapshots {
-		key := dbSnapshot.GetExternalUUID() + "." + dbSnapshot.Volume.VolumeAttributes.ExternalUUID
+		volumeExternalUUID := dbSnapshotVolumeExternalUUID(dbSnapshot)
+		if volumeExternalUUID == "" {
+			continue
+		}
+		key := dbSnapshot.GetExternalUUID() + "." + volumeExternalUUID
 		_, isNew := newSSMap[key]
 		_, stillExists := existingSSMap[key]
 		if !stillExists && !isNew {
-			_, volExistsInOntap := ontapVolumeMap[dbSnapshot.Volume.VolumeAttributes.ExternalUUID]
+			_, volExistsInOntap := ontapVolumeMap[volumeExternalUUID]
 			if !volExistsInOntap {
-				if dbSnapshot.UUID != "" {
-					logger.Warn("Skipped deleting snapshot from database - ONTAP volume is missing.")
-				}
+				logger.Warn("Skipped deleting snapshot from database - ONTAP volume is missing.")
 				continue
 			}
-
-			shouldDelete := dbSnapshot.Type != SnapshotTypeAdHoc
-
-			if shouldDelete {
-				deleteIDs = append(deleteIDs, dbSnapshot.ID)
+			if _, fetchSucceeded := snapshotFetchSucceeded[volumeExternalUUID]; !fetchSucceeded {
+				logger.Warn("Skipped deleting snapshot from database - ONTAP snapshot list was not fetched for the volume.")
+				continue
 			}
+			if !deleteStaleAdHocSnapshots && dbSnapshot.Type == SnapshotTypeAdHoc {
+				logger.Warnf("Skipped deleting ad-hoc snapshot %s from database - SNAPSHOT_SYNC_DELETE_STALE_ADHOC is disabled.", dbSnapshot.GetExternalUUID())
+				continue
+			}
+			if dbSnapshot.Type == SnapshotTypeAdHoc {
+				logger.Infof("Deleting stale ad-hoc snapshot %s because it is missing from ONTAP.", dbSnapshot.GetExternalUUID())
+			}
+
+			deleteIDs = append(deleteIDs, dbSnapshot.ID)
 		}
 	}
 	return
 }
 
 type GetOntapVolumesAndSnapshotsForPoolReturnValue struct {
-	OntapVolumeMap map[string]*vsa.Volume
-	OntapSnapshots []*vsa.Snapshot
+	OntapVolumeMap         map[string]*vsa.Volume
+	OntapSnapshots         []*vsa.Snapshot
+	SnapshotFetchSucceeded map[string]struct{}
 }
 
 func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Context, pool *datamodel.Pool) (*GetOntapVolumesAndSnapshotsForPoolReturnValue, error) {
@@ -526,13 +762,11 @@ func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Co
 
 	// Get snapshots in parallel with controlled concurrency
 	var ontapSnapshots []*vsa.Snapshot
+	snapshotFetchSucceeded := make(map[string]struct{})
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	maxConcurrency := ontapSnapshotFetchConcurrencyLimit
-	if maxConcurrency <= 0 {
-		maxConcurrency = 5
-	}
+	maxConcurrency := positiveConcurrency(ontapSnapshotFetchConcurrencyLimit, 5)
 	semaphore := make(chan struct{}, maxConcurrency)
 
 	for _, volume := range ontapVolumes {
@@ -545,8 +779,10 @@ func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Co
 		wg.Add(1)
 		go func(vol *vsa.Volume) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire slot
-			defer func() { <-semaphore }() // Release slot
+			if !tryAcquireSemaphore(ctx, semaphore) {
+				return
+			}
+			defer func() { <-semaphore }()
 
 			// Check context cancellation before processing
 			if ctx.Err() != nil {
@@ -587,17 +823,45 @@ func (a *SyncSnapshotActivity) GetOntapVolumesAndSnapshotsForPool(ctx context.Co
 			}
 			mu.Lock()
 			ontapSnapshots = append(ontapSnapshots, volumeSnapshots...)
+			if volumeExternalUUID := ontapVolumeExternalUUID(vol); volumeExternalUUID != "" {
+				snapshotFetchSucceeded[volumeExternalUUID] = struct{}{}
+			}
 			mu.Unlock()
 		}(volume)
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		logger.Warnf("Context cancelled while fetching ONTAP snapshots for pool %s: %v", pool.UUID, err)
+		return nil, err
+	}
 
 	ontapVolumeMap, ontapSnapshots := filterOntapVolumesAndSnapshots(ontapVolumes, ontapSnapshots)
 
 	return &GetOntapVolumesAndSnapshotsForPoolReturnValue{
-		OntapVolumeMap: ontapVolumeMap,
-		OntapSnapshots: ontapSnapshots,
+		OntapVolumeMap:         ontapVolumeMap,
+		OntapSnapshots:         ontapSnapshots,
+		SnapshotFetchSucceeded: snapshotFetchSucceeded,
 	}, nil
+}
+
+func dbSnapshotVolumeExternalUUID(dbSnapshot *datamodel.Snapshot) string {
+	if dbSnapshot == nil || dbSnapshot.Volume == nil || dbSnapshot.Volume.VolumeAttributes == nil {
+		return ""
+	}
+	return dbSnapshot.Volume.VolumeAttributes.ExternalUUID
+}
+
+func ontapVolumeExternalUUID(vol *vsa.Volume) string {
+	if vol == nil {
+		return ""
+	}
+	if vol.ExternalUUID != "" {
+		return vol.ExternalUUID
+	}
+	if vol.UUID != nil {
+		return *vol.UUID
+	}
+	return ""
 }
 
 type GetDBVolumeAndSnapshotsForPoolReturnValue struct {
@@ -637,7 +901,12 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 
 	var dbSnapshotMap = make(map[string]*datamodel.Snapshot, len(dbSnapshots))
 	for _, dbSnapshot := range dbSnapshots {
-		dbSnapshotMap[dbSnapshot.GetExternalUUID()] = dbSnapshot
+		volumeExternalUUID := dbSnapshotVolumeExternalUUID(dbSnapshot)
+		if volumeExternalUUID == "" {
+			logger.Warn("Skipped snapshot during sync - database volume is missing.")
+			continue
+		}
+		dbSnapshotMap[dbSnapshot.GetExternalUUID()+"."+volumeExternalUUID] = dbSnapshot
 	}
 
 	return &GetDBVolumeAndSnapshotsForPoolReturnValue{
@@ -648,32 +917,28 @@ func (a *SyncSnapshotActivity) GetDBVolumeAndSnapshotsForPool(ctx context.Contex
 }
 
 type ProcessSnapshotsReturnValue struct {
-	NewSSMap                   map[string]*vsa.Snapshot
-	UpdatedSSMap               map[string]*vsa.Snapshot
-	WronglyDeletedSnapshotsMap map[string]*vsa.Snapshot
-	NewIDs                     []string
-	UpdatedIDs                 []string
-	DeleteIDs                  []int64
-	WronglyDeletedIDs          []string
+	NewSSMap     map[string]*vsa.Snapshot
+	UpdatedSSMap map[string]*vsa.Snapshot
+	NewIDs       []string
+	UpdatedIDs   []string
+	DeleteIDs    []int64
 }
 
-func (a *SyncSnapshotActivity) ProcessSnapshots(ctx context.Context, ontapVolumeMap map[string]*vsa.Volume, ontapSnapshots []*vsa.Snapshot, dbVolumeMap map[string]*datamodel.Volume, dbSnapshots []*datamodel.Snapshot) (*ProcessSnapshotsReturnValue, error) {
-	newSSMap, updatedSSMap, wronglyDeletedSnapshotsMap, newIds, updatedIDs, deleteIDs, wronglyDeletedIds :=
-		processSnapshotSync(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots)
+func (a *SyncSnapshotActivity) ProcessSnapshots(ctx context.Context, ontapVolumeMap map[string]*vsa.Volume, ontapSnapshots []*vsa.Snapshot, dbVolumeMap map[string]*datamodel.Volume, dbSnapshots []*datamodel.Snapshot, snapshotFetchSucceeded map[string]struct{}) (*ProcessSnapshotsReturnValue, error) {
+	newSSMap, updatedSSMap, newIds, updatedIDs, deleteIDs :=
+		processSnapshotSync(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots, snapshotFetchSucceeded)
 
 	return &ProcessSnapshotsReturnValue{
-		NewSSMap:                   newSSMap,
-		UpdatedSSMap:               updatedSSMap,
-		WronglyDeletedSnapshotsMap: wronglyDeletedSnapshotsMap,
-		NewIDs:                     newIds,
-		UpdatedIDs:                 updatedIDs,
-		DeleteIDs:                  deleteIDs,
-		WronglyDeletedIDs:          wronglyDeletedIds,
+		NewSSMap:     newSSMap,
+		UpdatedSSMap: updatedSSMap,
+		NewIDs:       newIds,
+		UpdatedIDs:   updatedIDs,
+		DeleteIDs:    deleteIDs,
 	}, nil
 }
 
-func (a *SyncSnapshotActivity) SyncDeletedSnapshotsToDatabase(ctx context.Context, deleteIDs []int64) ([]*datamodel.Snapshot, error) {
-	return syncDeletedSnapshotsToDatabase(ctx, deleteIDs, a.SE)
+func (a *SyncSnapshotActivity) SyncDeletedSnapshotsToDatabase(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
+	return syncDeletedSnapshotsToDatabase(ctx, snapshots, a.SE)
 }
 
 func (a *SyncSnapshotActivity) SyncNewSnapshotsToDatabase(ctx context.Context, newSnapshots []string, newSSMap map[string]*vsa.Snapshot, dbVolumeMap map[string]*datamodel.Volume, pool *datamodel.Pool) ([]*datamodel.Snapshot, error) {
@@ -682,10 +947,6 @@ func (a *SyncSnapshotActivity) SyncNewSnapshotsToDatabase(ctx context.Context, n
 
 func (a *SyncSnapshotActivity) SyncUpdatedSnapshotsToDatabase(ctx context.Context, updatedSnapshots []string, updatedSSMap map[string]*vsa.Snapshot, dbSnapshotsMap map[string]*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
 	return syncUpdatedSnapshotsToDatabase(ctx, updatedSnapshots, updatedSSMap, a.SE, dbSnapshotsMap)
-}
-
-func (a *SyncSnapshotActivity) SyncWronglyDeletedSnapshotsToDatabase(ctx context.Context, wronglyDeletedSnapshots []string, wronglyDeletedSnapshotsMap map[string]*vsa.Snapshot) ([]*datamodel.Snapshot, error) {
-	return syncWronglyDeletedSnapshotsToDatabase(ctx, wronglyDeletedSnapshots, wronglyDeletedSnapshotsMap, a.SE, nil)
 }
 
 func (a *SyncSnapshotActivity) HydrateSnapshotsToCCFE(ctx context.Context, createdSnapshots []*datamodel.Snapshot, deletedSnapshots []*datamodel.Snapshot) error {
@@ -796,8 +1057,9 @@ func (a *SyncSnapshotActivity) SyncSnapshotsForPoolBatchActivity(ctx context.Con
 	var FailedResourceNames []string
 	var FailedResourceErrors []ParentChildWorkflowError
 
-	// Concurrent goroutines to process the snapshot sync for each pool
-	semaphore := make(chan struct{}, snapshotSyncMaxConcurrency)
+	// Concurrent goroutines to process the snapshot sync for each pool.
+	// Capacity must be > 0; a zero-capacity channel would deadlock every acquire.
+	semaphore := make(chan struct{}, positiveConcurrency(snapshotSyncMaxConcurrency, 20))
 
 	for _, poolIdentifier := range poolIdentifiers {
 		// Check if context is cancelled before starting new goroutine
@@ -810,8 +1072,9 @@ func (a *SyncSnapshotActivity) SyncSnapshotsForPoolBatchActivity(ctx context.Con
 		go func(pid *database.PoolIdentifier) {
 			defer wg.Done()
 
-			// Acquire semaphore
-			semaphore <- struct{}{}
+			if !tryAcquireSemaphore(ctx, semaphore) {
+				return
+			}
 			defer func() { <-semaphore }()
 
 			// Check context cancellation before processing
@@ -863,18 +1126,18 @@ func (a *SyncSnapshotActivity) processPoolSnapshotSync(ctx context.Context, pool
 		return fmt.Errorf("FetchPoolByUUID Failed: %w", err)
 	}
 
-	// Get ONTAP volumes and snapshots
+	// Read the database baseline before ONTAP. A snapshot that becomes READY while the ONTAP
+	// list is being fetched is absent from this baseline, so this pass cannot delete it.
+	dbVolSnapshotResp, err := a.GetDBVolumeAndSnapshotsForPool(ctx, pool)
+	if err != nil {
+		logger.Errorf("Failed to get database volumes and snapshots for pool %s: %v", pool.Name, err)
+		return fmt.Errorf("GetDBVolumeAndSnapshotsForPool Failed: %w", err)
+	}
+
 	ontapVolSnapshotResp, err := a.GetOntapVolumesAndSnapshotsForPool(ctx, pool)
 	if err != nil {
 		logger.Errorf("Failed to get ONTAP volumes and snapshots for pool %s: %v", pool.Name, err)
 		return fmt.Errorf("GetOntapVolumesAndSnapshotsForPool Failed: %w", err)
-	}
-
-	// Get DB volumes and snapshots
-	dbVolSnapshotResp, err := a.GetDBVolumeAndSnapshotsForPool(ctx, pool)
-	if err != nil {
-		logger.Errorf("Failed to get ONTAP volumes and snapshots for pool %s: %v", pool.Name, err)
-		return fmt.Errorf("GetDBVolumeAndSnapshotsForPool Failed: %w", err)
 	}
 
 	// Process snapshots to determine what needs to be created, updated, or deleted
@@ -884,14 +1147,33 @@ func (a *SyncSnapshotActivity) processPoolSnapshotSync(ctx context.Context, pool
 		ontapVolSnapshotResp.OntapSnapshots,
 		dbVolSnapshotResp.DBVolumeMap,
 		dbVolSnapshotResp.DBSnapshots,
+		ontapVolSnapshotResp.SnapshotFetchSucceeded,
 	)
 	if err != nil {
 		logger.Errorf("Failed to process snapshots for pool %s: %v", pool.Name, err)
 		return fmt.Errorf("ProcessSnapshots Failed: %w", err)
 	}
 
+	// Confirm each delete candidate with ONTAP get-by-UUID before soft-deleting. A successful
+	// but incomplete/lagging list must not remove rows that still exist on ONTAP.
+	deleteCandidates := snapshotsObservedForDelete(dbVolSnapshotResp.DBSnapshots, processSnapshotsResp.DeleteIDs)
+	if len(deleteCandidates) > 0 {
+		provider, providerErr := GetOntapRestProviderForPool(ctx, a.SE, pool)
+		if providerErr != nil || provider == nil {
+			logger.Errorf("Failed to get ONTAP provider to confirm snapshot deletes for pool %s: %v", pool.Name, providerErr)
+			return fmt.Errorf("confirm snapshot deletes: get ONTAP provider failed: %w", providerErr)
+		}
+		deleteCandidates = confirmSnapshotsGoneFromOntap(ctx, provider, deleteCandidates)
+		// GetSnapshot is not context-aware; a cancel during confirm can leave a partial set.
+		// Abort before applying deletes or continuing the pool sync.
+		if err := ctx.Err(); err != nil {
+			logger.Warnf("Context cancelled during snapshot delete confirmation for pool %s; skipping deletes and remaining sync: %v", pool.Name, err)
+			return err
+		}
+	}
+
 	// Sync deleted snapshots to database
-	deletedSnapshots, err := a.SyncDeletedSnapshotsToDatabase(ctx, processSnapshotsResp.DeleteIDs)
+	deletedSnapshots, err := a.SyncDeletedSnapshotsToDatabase(ctx, deleteCandidates)
 	if err != nil {
 		logger.Errorf("Failed to sync deleted snapshots for pool %s: %v", pool.Name, err)
 		return fmt.Errorf("SyncDeletedSnapshotsToDatabase Failed: %w", err)
@@ -908,14 +1190,7 @@ func (a *SyncSnapshotActivity) processPoolSnapshotSync(ctx context.Context, pool
 	_, err = a.SyncUpdatedSnapshotsToDatabase(ctx, processSnapshotsResp.UpdatedIDs, processSnapshotsResp.UpdatedSSMap, dbVolSnapshotResp.DBSnapshotMap)
 	if err != nil {
 		logger.Errorf("Failed to sync updated snapshots for pool %s: %v", pool.Name, err)
-		return fmt.Errorf("SyncUpdatedSnapshotsToDatabase Failed")
-	}
-
-	// Sync wrongly deleted snapshots to database
-	_, err = a.SyncWronglyDeletedSnapshotsToDatabase(ctx, processSnapshotsResp.WronglyDeletedIDs, processSnapshotsResp.WronglyDeletedSnapshotsMap)
-	if err != nil {
-		logger.Errorf("Failed to sync wrongly deleted snapshots for pool %s: %v", pool.Name, err)
-		return fmt.Errorf("SyncWronglyDeletedSnapshotsToDatabase Failed: %w", err)
+		return fmt.Errorf("SyncUpdatedSnapshotsToDatabase Failed: %w", err)
 	}
 
 	// Hydrate snapshots to CCFE

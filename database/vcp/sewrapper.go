@@ -3328,37 +3328,6 @@ func (re *retryEngine) GetSnapshotsByVolumeID(ctx context.Context, volumeID int6
 	return var0, err
 }
 
-func (re *retryEngine) GetWronglyDeletedSnapshot(ctx context.Context, snapshotExternalUUID string) (*datamodel.Snapshot, error) {
-	var var0 *datamodel.Snapshot
-	err := retry.Do(func(attempt int) (bool, error) {
-		var err error
-		var0, err = re.dataStore.GetWronglyDeletedSnapshot(ctx, snapshotExternalUUID)
-		if err != nil {
-			re.logError("GetWronglyDeletedSnapshot", err)
-			if !dbutils.IsTransientErr(err) {
-				return false, err
-			}
-		}
-		return true, err
-	})
-	return var0, err
-}
-
-func (re *retryEngine) UnDeleteSnapshot(ctx context.Context, snapshot *datamodel.Snapshot) error {
-	err := retry.Do(func(attempt int) (bool, error) {
-		var err error
-		err = re.dataStore.UnDeleteSnapshot(ctx, snapshot)
-		if err != nil {
-			re.logError("UnDeleteSnapshot", err)
-			if !dbutils.IsTransientErr(err) {
-				return false, err
-			}
-		}
-		return true, err
-	})
-	return err
-}
-
 func (re *retryEngine) GetSnapshotsByVolumeIDs(ctx context.Context, volumeID []int64) ([]*datamodel.Snapshot, error) {
 	var var0 []*datamodel.Snapshot
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -3486,6 +3455,22 @@ func (re *retryEngine) BatchDeleteSnapshots(ctx context.Context, snapshotIDs []i
 	return var0, err
 }
 
+func (re *retryEngine) BatchDeleteReadySnapshotsIfUnchanged(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
+	var var0 []*datamodel.Snapshot
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.BatchDeleteReadySnapshotsIfUnchanged(ctx, snapshots)
+		if err != nil {
+			re.logError("BatchDeleteReadySnapshotsIfUnchanged", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}
+
 func (re *retryEngine) BatchCreateSnapshots(ctx context.Context, newSnapshots []*datamodel.Snapshot, returnCreatedSnapshotUUIDs bool) ([]string, error) {
 	var var0 []string
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -3517,22 +3502,6 @@ func (re *retryEngine) BatchUpdateSnapshots(ctx context.Context, snapshots []*da
 	return err
 }
 
-func (re *retryEngine) BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error) {
-	var var0 []*datamodel.Snapshot
-	err := retry.Do(func(attempt int) (bool, error) {
-		var err error
-		var0, err = re.dataStore.BatchUnDeleteSnapshots(ctx, snapshots)
-		if err != nil {
-			re.logError("BatchUnDeleteSnapshots", err)
-			if !dbutils.IsTransientErr(err) {
-				return false, err
-			}
-		}
-		return true, err
-	})
-	return var0, err
-}
-
 func (re *retryEngine) BatchGetSnapshotsByUUIDs(ctx context.Context, snapshotUUIDs []string) ([]*datamodel.Snapshot, error) {
 	var var0 []*datamodel.Snapshot
 	err := retry.Do(func(attempt int) (bool, error) {
@@ -3549,13 +3518,13 @@ func (re *retryEngine) BatchGetSnapshotsByUUIDs(ctx context.Context, snapshotUUI
 	return var0, err
 }
 
-func (re *retryEngine) BatchGetWronglyDeletedSnapshots(ctx context.Context, snapshotExternalUUIDs []string) ([]*datamodel.Snapshot, error) {
-	var var0 []*datamodel.Snapshot
+func (re *retryEngine) ListSnapshotVolumeExternalUUIDs(ctx context.Context, volumeIDs []int64, externalUUIDs []string) ([]SnapshotVolumeExternalUUID, error) {
+	var var0 []SnapshotVolumeExternalUUID
 	err := retry.Do(func(attempt int) (bool, error) {
 		var err error
-		var0, err = re.dataStore.BatchGetWronglyDeletedSnapshots(ctx, snapshotExternalUUIDs)
+		var0, err = re.dataStore.ListSnapshotVolumeExternalUUIDs(ctx, volumeIDs, externalUUIDs)
 		if err != nil {
-			re.logError("BatchGetWronglyDeletedSnapshots", err)
+			re.logError("ListSnapshotVolumeExternalUUIDs", err)
 			if !dbutils.IsTransientErr(err) {
 				return false, err
 			}

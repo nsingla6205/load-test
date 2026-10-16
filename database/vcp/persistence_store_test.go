@@ -2498,55 +2498,6 @@ func TestBatchUpdateSnapshots_Persistence_Store(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestBatchUnDeleteSnapshots_Persistence_Store(t *testing.T) {
-	logger := log.NewLogger()
-	store, _ := SetupStorageForTest(logger)
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
-
-	// Create account and volume for association
-	acc := &datamodel.Account{Name: "acc_batch_undelete"}
-	createdAcc, err := store.CreateAccount(ctx, acc)
-	assert.NoError(t, err)
-	vol := &datamodel.Volume{
-		Name:      "vol_batch_undelete",
-		AccountID: createdAcc.ID,
-		Pool: &datamodel.Pool{
-			PoolAttributes: &datamodel.PoolAttributes{
-				PrimaryZone:  "us-central1-a",
-				IsRegionalHA: false,
-			},
-		},
-	}
-	createdVol, err := store.CreateVolume(ctx, vol)
-	assert.NoError(t, err)
-
-	// Create snapshots first
-	snapshots := []*datamodel.Snapshot{
-		{Name: "undelete_snap_1", AccountID: createdAcc.ID, VolumeID: createdVol.ID, Volume: createdVol, Account: createdAcc},
-		{Name: "undelete_snap_2", AccountID: createdAcc.ID, VolumeID: createdVol.ID, Volume: createdVol, Account: createdAcc},
-	}
-	uuids, err := store.BatchCreateSnapshots(ctx, snapshots, true)
-	assert.NoError(t, err)
-
-	// Mark snapshots as deleted first
-	for i, uuid := range uuids {
-		snapshots[i].UUID = uuid
-		snapshots[i].State = datamodel.LifeCycleStateDeleted
-		snapshots[i].StateDetails = datamodel.LifeCycleStateDeletedDetails
-	}
-	err = store.BatchUpdateSnapshots(ctx, snapshots)
-	assert.NoError(t, err)
-
-	// Test batch undelete
-	_, err = store.BatchUnDeleteSnapshots(ctx, snapshots)
-	assert.NoError(t, err)
-
-	// Test with empty snapshots slice
-	_, err = store.BatchUnDeleteSnapshots(ctx, []*datamodel.Snapshot{})
-	assert.NoError(t, err)
-}
-
 func TestBatchGetSnapshotsByUUIDs_Persistence_Store(t *testing.T) {
 	logger := log.NewLogger()
 	store, _ := SetupStorageForTest(logger)
@@ -2614,92 +2565,6 @@ func TestBatchGetSnapshotsByUUIDs_Persistence_Store(t *testing.T) {
 	assert.Empty(t, nonExistentSnapshots)
 }
 
-func TestBatchGetWronglyDeletedSnapshots_Persistence_Store(t *testing.T) {
-	logger := log.NewLogger()
-	store, _ := SetupStorageForTest(logger)
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, middleware.ContextSLoggerKey, logger)
-
-	// Create account and volume for association
-	acc := &datamodel.Account{Name: "acc_wrongly_deleted"}
-	createdAcc, err := store.CreateAccount(ctx, acc)
-	assert.NoError(t, err)
-	vol := &datamodel.Volume{
-		Name:      "vol_wrongly_deleted",
-		AccountID: createdAcc.ID,
-		Pool: &datamodel.Pool{
-			PoolAttributes: &datamodel.PoolAttributes{
-				PrimaryZone:  "us-central1-a",
-				IsRegionalHA: false,
-			},
-		},
-	}
-	createdVol, err := store.CreateVolume(ctx, vol)
-	assert.NoError(t, err)
-
-	// Create snapshots with external UUIDs
-	snapshots := []*datamodel.Snapshot{
-		{
-			Name:               "wrongly_deleted_1",
-			AccountID:          createdAcc.ID,
-			VolumeID:           createdVol.ID,
-			Volume:             createdVol,
-			Account:            createdAcc,
-			ExternalUUID:       "ext-uuid-1",
-			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-1"},
-		},
-		{
-			Name:               "wrongly_deleted_2",
-			AccountID:          createdAcc.ID,
-			VolumeID:           createdVol.ID,
-			Volume:             createdVol,
-			Account:            createdAcc,
-			ExternalUUID:       "ext-uuid-2",
-			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-uuid-2"},
-		},
-	}
-	uuids, err := store.BatchCreateSnapshots(ctx, snapshots, true)
-	assert.NoError(t, err)
-
-	// Mark snapshots as deleted to simulate wrongly deleted state
-	for i, uuid := range uuids {
-		snapshots[i].UUID = uuid
-	}
-	_, err = store.BatchDeleteSnapshots(ctx, []int64{snapshots[0].ID, snapshots[1].ID})
-	assert.NoError(t, err)
-
-	// Test batch get wrongly deleted snapshots
-	externalUUIDs := []string{"ext-uuid-1", "ext-uuid-2"}
-	wronglyDeletedSnapshots, err := store.BatchGetWronglyDeletedSnapshots(ctx, externalUUIDs)
-	assert.NoError(t, err)
-	assert.Len(t, wronglyDeletedSnapshots, 2)
-
-	// Verify external UUIDs match
-	foundExternalUUIDs := make(map[string]bool)
-	for _, snapshot := range wronglyDeletedSnapshots {
-		foundExternalUUIDs[snapshot.ExternalUUID] = true
-	}
-	assert.True(t, foundExternalUUIDs["ext-uuid-1"])
-	assert.True(t, foundExternalUUIDs["ext-uuid-2"])
-
-	// Test with non-existent external UUIDs
-	nonExistentSnapshots, err := store.BatchGetWronglyDeletedSnapshots(ctx, []string{"non-existent-ext-uuid"})
-	assert.NoError(t, err)
-	assert.Empty(t, nonExistentSnapshots)
-
-	// Test with empty external UUIDs slice
-	emptySnapshots, err := store.BatchGetWronglyDeletedSnapshots(ctx, []string{})
-	assert.NoError(t, err)
-	assert.Empty(t, emptySnapshots)
-
-	// Test with mixed external UUIDs (some exist, some don't)
-	mixedExternalUUIDs := []string{"ext-uuid-1", "non-existent-ext-uuid"}
-	mixedSnapshots, err := store.BatchGetWronglyDeletedSnapshots(ctx, mixedExternalUUIDs)
-	assert.NoError(t, err)
-	assert.Len(t, mixedSnapshots, 1) // Only one should be found
-	assert.Equal(t, "ext-uuid-1", mixedSnapshots[0].ExternalUUID)
-}
-
 func TestBatchSnapshotOperations_ErrorScenarios_Persistence_Store(t *testing.T) {
 	logger := log.NewLogger()
 	store, _ := SetupStorageForTest(logger)
@@ -2729,18 +2594,6 @@ func TestBatchSnapshotOperations_ErrorScenarios_Persistence_Store(t *testing.T) 
 			},
 		}
 		err := store.BatchUpdateSnapshots(ctx, snapshots)
-		// This should not error even if snapshot doesn't exist (0 rows affected)
-		assert.NoError(tt, err)
-	})
-
-	t.Run("BatchUnDeleteSnapshots_NonExistentSnapshot", func(tt *testing.T) {
-		snapshots := []*datamodel.Snapshot{
-			{
-				BaseModel: datamodel.BaseModel{UUID: "non-existent-uuid", ID: 9999},
-				State:     datamodel.LifeCycleStateREADY,
-			},
-		}
-		_, err := store.BatchUnDeleteSnapshots(ctx, snapshots)
 		// This should not error even if snapshot doesn't exist (0 rows affected)
 		assert.NoError(tt, err)
 	})

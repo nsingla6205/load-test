@@ -294,8 +294,6 @@ type (
 		GetSnapshotByNameAndVolumeId(ctx context.Context, snapshotName string, accountID int64, volumeID int64) (*datamodel.Snapshot, error)
 		GetSnapshotByPoolID(ctx context.Context, SnapshotUUID string, accountID int64, poolID int64, isParentSnapshot bool) (*datamodel.Snapshot, error)
 		GetSnapshotsByVolumeID(ctx context.Context, volumeID int64) ([]*datamodel.Snapshot, error)
-		GetWronglyDeletedSnapshot(ctx context.Context, snapshotExternalUUID string) (*datamodel.Snapshot, error)
-		UnDeleteSnapshot(ctx context.Context, snapshot *datamodel.Snapshot) error
 		GetSnapshotsByVolumeIDs(ctx context.Context, volumeID []int64) ([]*datamodel.Snapshot, error)
 		GetReplicationSnapshotsByVolumeID(ctx context.Context, volumeID int64) ([]*datamodel.Snapshot, error)
 		GetSnapshotsWithCondition(ctx context.Context, filter dbutils.Filter) ([]*datamodel.Snapshot, error)
@@ -304,11 +302,13 @@ type (
 		DeleteSnapshot(ctx context.Context, id string) (*datamodel.Snapshot, error)
 		DeletingSnapshot(ctx context.Context, snapshot *datamodel.Snapshot) error
 		BatchDeleteSnapshots(ctx context.Context, snapshotIDs []int64) ([]*datamodel.Snapshot, error)
+		// BatchDeleteReadySnapshotsIfUnchanged soft-deletes READY snapshots that still have the updated_at observed in the baseline read. Changed rows are skipped.
+		BatchDeleteReadySnapshotsIfUnchanged(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error)
 		BatchCreateSnapshots(ctx context.Context, newSnapshots []*datamodel.Snapshot, returnCreatedSnapshotUUIDs bool) ([]string, error)
 		BatchUpdateSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) error
-		BatchUnDeleteSnapshots(ctx context.Context, snapshots []*datamodel.Snapshot) ([]*datamodel.Snapshot, error)
 		BatchGetSnapshotsByUUIDs(ctx context.Context, snapshotUUIDs []string) ([]*datamodel.Snapshot, error)
-		BatchGetWronglyDeletedSnapshots(ctx context.Context, snapshotExternalUUIDs []string) ([]*datamodel.Snapshot, error)
+		// ListSnapshotVolumeExternalUUIDs returns volume and external UUID pairs that already exist, including non-READY and soft-deleted rows.
+		ListSnapshotVolumeExternalUUIDs(ctx context.Context, volumeIDs []int64, externalUUIDs []string) ([]SnapshotVolumeExternalUUID, error)
 		CreatingQuotaRule(ctx context.Context, quotaRule *datamodel.QuotaRule) (*datamodel.QuotaRule, error)
 		UpdatingQuotaRule(ctx context.Context, quotaRule *datamodel.QuotaRule) (*datamodel.QuotaRule, error)
 		UpdateQuotaRule(ctx context.Context, quotaRule *datamodel.QuotaRule) (*datamodel.QuotaRule, error)

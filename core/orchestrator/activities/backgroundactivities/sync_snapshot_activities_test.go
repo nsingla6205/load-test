@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -18,6 +20,7 @@ import (
 	database "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/vcp"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/auth"
+	customerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/nillable"
 	"go.temporal.io/sdk/testsuite"
 	"gorm.io/gorm"
@@ -137,172 +140,12 @@ func TestFilterOntapVolumesAndSnapshots(t *testing.T) {
 	assert.Len(t, filteredSnapshots, 3)
 }
 
-func TestSyncWronglyDeletedSnapshotsToDatabase(t *testing.T) {
-	ctx := context.TODO()
-	t.Run("SyncWronglyDeletedSnapshotsToDatabaseSuccess", func(tt *testing.T) {
-		mockStorage := database.NewMockStorage(tt)
-		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"wrongly-deleted-snapshot-uuid": {
-				BaseModel:    datamodel.BaseModel{ID: 1},
-				State:        datamodel.LifeCycleStateDeleted,
-				StateDetails: datamodel.LifeCycleStateDeletedDetails,
-			},
-		}
-		wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{
-			"snapshot-uuid.volume-uuid": {
-				Snapshot: ontaprestmodel.Snapshot{
-					Name: nillable.ToPointer("wrongly-deleted-snapshot"),
-					ProvenanceVolume: &ontaprestmodel.SnapshotInlineProvenanceVolume{
-						UUID: nillable.ToPointer("test-volume-uuid"),
-					},
-					Volume: &ontaprestmodel.SnapshotInlineVolume{
-						Name: nillable.ToPointer("test-volume"),
-					},
-					Svm: &ontaprestmodel.SnapshotInlineSvm{
-						Name: nillable.ToPointer("test-svm"),
-					},
-				},
-				ExternalUUID: "wrongly-deleted-snapshot-uuid",
-			},
-		}
-
-		// Mock the batch get wrongly deleted snapshots call
-		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
-			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
-		// Mock the batch undelete snapshots call
-		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(
-			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
-
-		_, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
-		assert.NoError(t, err)
-		mockStorage.AssertExpectations(t)
-	})
-	t.Run("SyncWronglyDeletedSnapshotsToDatabaseBatchGetFailed", func(tt *testing.T) {
-		mockStorage := database.NewMockStorage(tt)
-		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"wrongly-deleted-snapshot-uuid": {
-				BaseModel:    datamodel.BaseModel{ID: 1},
-				State:        datamodel.LifeCycleStateDeleted,
-				StateDetails: datamodel.LifeCycleStateDeletedDetails,
-			},
-		}
-		wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{
-			"snapshot-uuid.volume-uuid": {
-				Snapshot: ontaprestmodel.Snapshot{
-					Name: nillable.ToPointer("wrongly-deleted-snapshot"),
-					ProvenanceVolume: &ontaprestmodel.SnapshotInlineProvenanceVolume{
-						UUID: nillable.ToPointer("test-volume-uuid"),
-					},
-					Volume: &ontaprestmodel.SnapshotInlineVolume{
-						Name: nillable.ToPointer("test-volume"),
-					},
-					Svm: &ontaprestmodel.SnapshotInlineSvm{
-						Name: nillable.ToPointer("test-svm"),
-					},
-				},
-				ExternalUUID: "wrongly-deleted-snapshot-uuid",
-			},
-		}
-
-		// Mock the batch get wrongly deleted snapshots call to return error
-		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
-			nil, errors.New("could not get wrongly deleted snapshots"))
-
-		_, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
-		assert.Error(t, err)
-		mockStorage.AssertExpectations(t)
-	})
-	t.Run("SyncWronglyDeletedSnapshotsToDatabaseBatchUnDeleteFailed", func(tt *testing.T) {
-		mockStorage := database.NewMockStorage(tt)
-		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"wrongly-deleted-snapshot-uuid": {
-				BaseModel:    datamodel.BaseModel{ID: 1},
-				State:        datamodel.LifeCycleStateDeleted,
-				StateDetails: datamodel.LifeCycleStateDeletedDetails,
-			},
-		}
-		wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{
-			"snapshot-uuid.volume-uuid": {
-				Snapshot: ontaprestmodel.Snapshot{
-					Name: nillable.ToPointer("wrongly-deleted-snapshot"),
-					ProvenanceVolume: &ontaprestmodel.SnapshotInlineProvenanceVolume{
-						UUID: nillable.ToPointer("test-volume-uuid"),
-					},
-					Volume: &ontaprestmodel.SnapshotInlineVolume{
-						Name: nillable.ToPointer("test-volume"),
-					},
-					Svm: &ontaprestmodel.SnapshotInlineSvm{
-						Name: nillable.ToPointer("test-svm"),
-					},
-				},
-				ExternalUUID: "wrongly-deleted-snapshot-uuid",
-			},
-		}
-
-		// Mock the batch get wrongly deleted snapshots call
-		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
-			[]*datamodel.Snapshot{{State: datamodel.LifeCycleStateDeleted, StateDetails: datamodel.LifeCycleStateDeletedDetails}}, nil)
-		// Mock the batch undelete snapshots call to return error
-		mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.AnythingOfType("[]*datamodel.Snapshot")).Return(nil, errors.New("could not undelete snapshots"))
-
-		_, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
-		assert.Error(t, err)
-		mockStorage.AssertExpectations(t)
-	})
-	t.Run("SyncWronglyDeletedSnapshotsToDatabaseWithEmptySnapshots", func(tt *testing.T) {
-		mockStorage := database.NewMockStorage(tt)
-		dbSnapshotsMap := map[string]*datamodel.Snapshot{}
-		wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{}
-
-		result, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
-		assert.NoError(t, err)
-		assert.Nil(t, result)
-		// No expectations to assert since no methods should be called
-	})
-	t.Run("SyncWronglyDeletedSnapshotsToDatabaseWithNoSnapshotsFound", func(tt *testing.T) {
-		mockStorage := database.NewMockStorage(tt)
-		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"wrongly-deleted-snapshot-uuid": {
-				BaseModel:    datamodel.BaseModel{ID: 1},
-				State:        datamodel.LifeCycleStateDeleted,
-				StateDetails: datamodel.LifeCycleStateDeletedDetails,
-			},
-		}
-		wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{
-			"snapshot-uuid.volume-uuid": {
-				Snapshot: ontaprestmodel.Snapshot{
-					Name: nillable.ToPointer("wrongly-deleted-snapshot"),
-					ProvenanceVolume: &ontaprestmodel.SnapshotInlineProvenanceVolume{
-						UUID: nillable.ToPointer("test-volume-uuid"),
-					},
-					Volume: &ontaprestmodel.SnapshotInlineVolume{
-						Name: nillable.ToPointer("test-volume"),
-					},
-					Svm: &ontaprestmodel.SnapshotInlineSvm{
-						Name: nillable.ToPointer("test-svm"),
-					},
-				},
-				ExternalUUID: "wrongly-deleted-snapshot-uuid",
-			},
-		}
-
-		// Mock the batch get wrongly deleted snapshots call to return empty slice
-		mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"wrongly-deleted-snapshot-uuid"}).Return(
-			[]*datamodel.Snapshot{}, nil)
-
-		result, err := syncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, wronglyDeletedSnapshotsMap, mockStorage, dbSnapshotsMap)
-		assert.NoError(t, err)
-		assert.Empty(t, result)
-		mockStorage.AssertExpectations(t)
-	})
-}
-
 func TestSyncUpdatedSnapshotsToDatabase(t *testing.T) {
 	ctx := context.TODO()
 	t.Run("SyncUpdatedSnapshotsToDatabaseSuccess", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"updated-snapshot-uuid": {
+			"snapshot-uuid.volume-uuid": {
 				BaseModel:    datamodel.BaseModel{ID: 1, UUID: "updated-snapshot-uuid"},
 				State:        datamodel.LifeCycleStateREADY,
 				StateDetails: datamodel.LifeCycleStateReadyDetails,
@@ -339,7 +182,7 @@ func TestSyncUpdatedSnapshotsToDatabase(t *testing.T) {
 	t.Run("SyncUpdatedSnapshotsToDatabaseBatchUpdateFailed", func(tt *testing.T) {
 		mockStorage := database.NewMockStorage(tt)
 		dbSnapshotsMap := map[string]*datamodel.Snapshot{
-			"updated-snapshot-uuid": {
+			"snapshot-uuid.volume-uuid": {
 				BaseModel:    datamodel.BaseModel{ID: 1, UUID: "updated-snapshot-uuid"},
 				State:        datamodel.LifeCycleStateREADY,
 				StateDetails: datamodel.LifeCycleStateReadyDetails,
@@ -400,6 +243,118 @@ func TestSyncUpdatedSnapshotsToDatabase(t *testing.T) {
 		assert.Nil(t, result)
 		// No expectations to assert since no methods should be called when snapshot doesn't exist in DB
 	})
+	t.Run("SyncUpdatedSnapshotsToDatabaseSameExternalUUIDOnTwoVolumes", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		dbSnapshotsMap := map[string]*datamodel.Snapshot{
+			"shared-snapshot-uuid.volume-uuid-1": {
+				BaseModel:    datamodel.BaseModel{ID: 1, UUID: "db-snapshot-1"},
+				State:        datamodel.LifeCycleStateREADY,
+				StateDetails: datamodel.LifeCycleStateReadyDetails,
+			},
+			"shared-snapshot-uuid.volume-uuid-2": {
+				BaseModel:    datamodel.BaseModel{ID: 2, UUID: "db-snapshot-2"},
+				State:        datamodel.LifeCycleStateREADY,
+				StateDetails: datamodel.LifeCycleStateReadyDetails,
+			},
+		}
+		updatedSSMap := map[string]*vsa.Snapshot{
+			"shared-snapshot-uuid.volume-uuid-1": {
+				ExternalUUID:           "shared-snapshot-uuid",
+				SizeInBytes:            100,
+				LogicalSizeUsedInBytes: 80,
+				Snapshot:               ontaprestmodel.Snapshot{Name: nillable.ToPointer("clone-on-vol-1")},
+			},
+			"shared-snapshot-uuid.volume-uuid-2": {
+				ExternalUUID:           "shared-snapshot-uuid",
+				SizeInBytes:            200,
+				LogicalSizeUsedInBytes: 160,
+				Snapshot:               ontaprestmodel.Snapshot{Name: nillable.ToPointer("clone-on-vol-2")},
+			},
+		}
+		mockStorage.On("BatchUpdateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
+			if len(snapshots) != 2 {
+				return false
+			}
+			byID := map[int64]*datamodel.Snapshot{}
+			for _, snapshot := range snapshots {
+				byID[snapshot.ID] = snapshot
+			}
+			first, second := byID[1], byID[2]
+			return first != nil && second != nil &&
+				first.Name == "clone-on-vol-1" && first.SnapshotAttributes.SizeInBytes == 100 &&
+				first.State == "" && first.StateDetails == "" &&
+				second.Name == "clone-on-vol-2" && second.SnapshotAttributes.SizeInBytes == 200 &&
+				second.State == "" && second.StateDetails == ""
+		})).Return(nil)
+
+		updatedDbSnapshots, err := syncUpdatedSnapshotsToDatabase(ctx, []string{"shared-snapshot-uuid.volume-uuid-1", "shared-snapshot-uuid.volume-uuid-2"}, updatedSSMap, mockStorage, dbSnapshotsMap)
+		assert.NoError(tt, err)
+		assert.Len(tt, updatedDbSnapshots, 2)
+		mockStorage.AssertExpectations(tt)
+	})
+}
+
+func TestExistingSnapshotVolumeExternalKeys_ChunksExternalUUIDsOnly(t *testing.T) {
+	originalChunk := snapshotSyncChunkSize
+	snapshotSyncChunkSize = 2
+	t.Cleanup(func() { snapshotSyncChunkSize = originalChunk })
+
+	ctx := context.Background()
+	mockStorage := database.NewMockStorage(t)
+
+	// 3 volumes × 5 UUIDs: nested volume×UUID chunking would issue
+	// ceil(5/2)*ceil(3/2)=6 queries; single-dimension chunking issues ceil(5/2)=3.
+	candidates := []*datamodel.Snapshot{
+		{BaseModel: datamodel.BaseModel{}, VolumeID: 1, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-1"}},
+		{BaseModel: datamodel.BaseModel{}, VolumeID: 2, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-2"}},
+		{BaseModel: datamodel.BaseModel{}, VolumeID: 3, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-3"}},
+		{BaseModel: datamodel.BaseModel{}, VolumeID: 1, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-4"}},
+		{BaseModel: datamodel.BaseModel{}, VolumeID: 2, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "ext-5"}},
+	}
+
+	callCount := 0
+	mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1, 2, 3}, mock.MatchedBy(func(uuids []string) bool {
+		return len(uuids) > 0 && len(uuids) <= 2
+	})).Return([]database.SnapshotVolumeExternalUUID{}, nil).Run(func(args mock.Arguments) {
+		callCount++
+		uuids := args.Get(2).([]string)
+		require.LessOrEqual(t, len(uuids), 2)
+		assert.Equal(t, []int64{1, 2, 3}, args.Get(1))
+	})
+
+	existing, err := existingSnapshotVolumeExternalKeys(ctx, mockStorage, candidates)
+	require.NoError(t, err)
+	assert.Empty(t, existing)
+	assert.Equal(t, 3, callCount)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestExistingSnapshotVolumeExternalKeys_MergesChunkResults(t *testing.T) {
+	originalChunk := snapshotSyncChunkSize
+	snapshotSyncChunkSize = 2
+	t.Cleanup(func() { snapshotSyncChunkSize = originalChunk })
+
+	ctx := context.Background()
+	mockStorage := database.NewMockStorage(t)
+
+	candidates := []*datamodel.Snapshot{
+		{VolumeID: 10, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "a"}},
+		{VolumeID: 20, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "b"}},
+		{VolumeID: 10, SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "c"}},
+	}
+
+	mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{10, 20}, []string{"a", "b"}).Return(
+		[]database.SnapshotVolumeExternalUUID{{VolumeID: 10, ExternalUUID: "a"}}, nil)
+	mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{10, 20}, []string{"c"}).Return(
+		[]database.SnapshotVolumeExternalUUID{{VolumeID: 20, ExternalUUID: "c"}}, nil)
+
+	existing, err := existingSnapshotVolumeExternalKeys(ctx, mockStorage, candidates)
+	require.NoError(t, err)
+	assert.Equal(t, map[snapshotVolumeExternalKey]struct{}{
+		{volumeID: 10, externalUUID: "a"}: {},
+		{volumeID: 20, externalUUID: "c"}: {},
+	}, existing)
+	mockStorage.AssertExpectations(t)
 }
 
 func TestSyncNewSnapshotsToDatabase(t *testing.T) {
@@ -433,6 +388,7 @@ func TestSyncNewSnapshotsToDatabase(t *testing.T) {
 			},
 		}
 
+		mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1}, []string{"new-snapshot-uuid"}).Return([]database.SnapshotVolumeExternalUUID{}, nil)
 		mockStorage.On("BatchCreateSnapshots", ctx, mock.Anything, mock.Anything).Return(nil, nil)
 
 		_, err := syncNewSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, newSSMap, mockStorage, dbVolumeMap, pool)
@@ -468,6 +424,7 @@ func TestSyncNewSnapshotsToDatabase(t *testing.T) {
 			},
 		}
 
+		mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1}, []string{"new-snapshot-uuid"}).Return([]database.SnapshotVolumeExternalUUID{}, nil)
 		mockStorage.On("BatchCreateSnapshots", ctx, mock.Anything, mock.Anything).Return(
 			nil, errors.New("could not create snapshot"))
 
@@ -475,22 +432,130 @@ func TestSyncNewSnapshotsToDatabase(t *testing.T) {
 		assert.Error(t, err)
 		mockStorage.AssertExpectations(t)
 	})
+	t.Run("SkipsInsertWhenVolumeAndExternalUUIDAlreadyExist", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		dbVolumeMap := map[string]*datamodel.Volume{
+			"test-volume-uuid": {
+				BaseModel: datamodel.BaseModel{ID: 1},
+			},
+		}
+		pool := &datamodel.Pool{AccountID: 1}
+		newSSMap := map[string]*vsa.Snapshot{
+			"snapshot-uuid.volume-uuid": {
+				Snapshot: ontaprestmodel.Snapshot{
+					Name: nillable.ToPointer("hourly.2026-10-07"),
+				},
+				ExternalUUID:       "new-snapshot-uuid",
+				ExternalVolumeUUID: "test-volume-uuid",
+				Type:               SnapshotTypeScheduled,
+			},
+		}
+		mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1}, []string{"new-snapshot-uuid"}).Return(
+			[]database.SnapshotVolumeExternalUUID{{VolumeID: 1, ExternalUUID: "new-snapshot-uuid"}}, nil)
+
+		created, err := syncNewSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, newSSMap, mockStorage, dbVolumeMap, pool)
+		assert.NoError(tt, err)
+		assert.Empty(tt, created)
+		mockStorage.AssertNotCalled(tt, "BatchCreateSnapshots", mock.Anything, mock.Anything, mock.Anything)
+		mockStorage.AssertExpectations(tt)
+	})
+	t.Run("InsertsWhenSameExternalUUIDExistsOnAnotherVolume", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		dbVolumeMap := map[string]*datamodel.Volume{
+			"volume-1": {BaseModel: datamodel.BaseModel{ID: 1}},
+			"volume-2": {BaseModel: datamodel.BaseModel{ID: 2}},
+		}
+		pool := &datamodel.Pool{AccountID: 1}
+		newSSMap := map[string]*vsa.Snapshot{
+			"snapshot-uuid.volume-1": {
+				Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("cloned-snapshot")},
+				ExternalUUID:       "shared-snapshot-uuid",
+				ExternalVolumeUUID: "volume-1",
+				Type:               SnapshotTypeAdHoc,
+			},
+			"snapshot-uuid.volume-2": {
+				Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("cloned-snapshot")},
+				ExternalUUID:       "shared-snapshot-uuid",
+				ExternalVolumeUUID: "volume-2",
+				Type:               SnapshotTypeAdHoc,
+			},
+		}
+		mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1, 2}, []string{"shared-snapshot-uuid"}).Return(
+			[]database.SnapshotVolumeExternalUUID{{VolumeID: 1, ExternalUUID: "shared-snapshot-uuid"}}, nil)
+		mockStorage.On("BatchCreateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
+			return len(snapshots) == 1 && snapshots[0].VolumeID == 2 && snapshots[0].ExternalUUID == "shared-snapshot-uuid"
+		}), true).Return([]string{"created-uuid"}, nil)
+		mockStorage.On("BatchGetSnapshotsByUUIDs", ctx, []string{"created-uuid"}).Return([]*datamodel.Snapshot{{ExternalUUID: "shared-snapshot-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
+
+		created, err := syncNewSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-1", "snapshot-uuid.volume-2"}, newSSMap, mockStorage, dbVolumeMap, pool)
+		assert.NoError(tt, err)
+		assert.Len(tt, created, 1)
+		mockStorage.AssertExpectations(tt)
+	})
+	t.Run("InsertsWhenExternalUUIDIsEmpty", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		dbVolumeMap := map[string]*datamodel.Volume{
+			"test-volume-uuid": {BaseModel: datamodel.BaseModel{ID: 1}},
+		}
+		pool := &datamodel.Pool{AccountID: 1}
+		newSSMap := map[string]*vsa.Snapshot{
+			"snapshot-uuid.volume-uuid": {
+				Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("new-snapshot")},
+				ExternalVolumeUUID: "test-volume-uuid",
+				Type:               SnapshotTypeScheduled,
+			},
+		}
+		mockStorage.On("BatchCreateSnapshots", ctx, mock.Anything, true).Return([]string{"created-uuid"}, nil)
+		mockStorage.On("BatchGetSnapshotsByUUIDs", ctx, []string{"created-uuid"}).Return([]*datamodel.Snapshot{{SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
+
+		created, err := syncNewSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, newSSMap, mockStorage, dbVolumeMap, pool)
+		assert.NoError(tt, err)
+		assert.Len(tt, created, 1)
+		mockStorage.AssertNotCalled(tt, "ListSnapshotVolumeExternalUUIDs", mock.Anything, mock.Anything, mock.Anything)
+		mockStorage.AssertExpectations(tt)
+	})
+	t.Run("ReturnsErrorWhenExistingSnapshotLookupFails", func(tt *testing.T) {
+		mockStorage := database.NewMockStorage(tt)
+		dbVolumeMap := map[string]*datamodel.Volume{
+			"test-volume-uuid": {BaseModel: datamodel.BaseModel{ID: 1}},
+		}
+		pool := &datamodel.Pool{AccountID: 1}
+		newSSMap := map[string]*vsa.Snapshot{
+			"snapshot-uuid.volume-uuid": {
+				Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("hourly.2026-10-07")},
+				ExternalUUID:       "new-snapshot-uuid",
+				ExternalVolumeUUID: "test-volume-uuid",
+				Type:               SnapshotTypeScheduled,
+			},
+		}
+		mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1}, []string{"new-snapshot-uuid"}).Return(nil, errors.New("lookup failed"))
+
+		created, err := syncNewSnapshotsToDatabase(ctx, []string{"snapshot-uuid.volume-uuid"}, newSSMap, mockStorage, dbVolumeMap, pool)
+		assert.Error(tt, err)
+		assert.Nil(tt, created)
+		mockStorage.AssertNotCalled(tt, "BatchCreateSnapshots", mock.Anything, mock.Anything, mock.Anything)
+		mockStorage.AssertExpectations(tt)
+	})
 }
 
 func TestSyncDeletedSnapshotsToDatabase(t *testing.T) {
 	t.Run("SyncDeletedSnapshotsToDatabaseSuccess", func(tt *testing.T) {
 		ctx := context.TODO()
 		mockStorage := database.NewMockStorage(tt)
-
-		deleteIDs := []int64{1, 2, 3}
-		mockStorage.On("BatchDeleteSnapshots", ctx, deleteIDs).Return(
+		observedAt := time.Date(2026, 10, 14, 1, 2, 3, 0, time.UTC)
+		snapshots := []*datamodel.Snapshot{
+			{BaseModel: datamodel.BaseModel{ID: 1, UpdatedAt: observedAt}},
+			{BaseModel: datamodel.BaseModel{ID: 2, UpdatedAt: observedAt}},
+			{BaseModel: datamodel.BaseModel{ID: 3, UpdatedAt: observedAt}},
+		}
+		mockStorage.On("BatchDeleteReadySnapshotsIfUnchanged", ctx, snapshots).Return(
 			[]*datamodel.Snapshot{
 				{BaseModel: datamodel.BaseModel{ID: 1}},
 				{BaseModel: datamodel.BaseModel{ID: 2}},
 				{BaseModel: datamodel.BaseModel{ID: 3}},
 			}, nil)
 
-		deletedSnapshots, err := syncDeletedSnapshotsToDatabase(ctx, deleteIDs, mockStorage)
+		deletedSnapshots, err := syncDeletedSnapshotsToDatabase(ctx, snapshots, mockStorage)
 		assert.NoError(tt, err)
 		assert.Len(tt, deletedSnapshots, 3)
 		mockStorage.AssertExpectations(tt)
@@ -498,14 +563,22 @@ func TestSyncDeletedSnapshotsToDatabase(t *testing.T) {
 	t.Run("SyncDeletedSnapshotsToDatabaseFailed", func(tt *testing.T) {
 		ctx := context.TODO()
 		mockStorage := database.NewMockStorage(tt)
+		snapshots := []*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{ID: 1}}}
+		mockStorage.On("BatchDeleteReadySnapshotsIfUnchanged", ctx, snapshots).Return(nil, errors.New("could not delete snapshots"))
 
-		deleteIDs := []int64{1, 2, 3}
-		mockStorage.On("BatchDeleteSnapshots", ctx, deleteIDs).Return(nil, errors.New("could not delete snapshots"))
-
-		deletedSnapshots, err := syncDeletedSnapshotsToDatabase(ctx, deleteIDs, mockStorage)
+		deletedSnapshots, err := syncDeletedSnapshotsToDatabase(ctx, snapshots, mockStorage)
 		assert.Error(tt, err)
 		assert.Nil(t, deletedSnapshots)
 		mockStorage.AssertExpectations(tt)
+	})
+	t.Run("SkipsDatabaseCallWhenNothingToDelete", func(tt *testing.T) {
+		ctx := context.TODO()
+		mockStorage := database.NewMockStorage(tt)
+
+		deletedSnapshots, err := syncDeletedSnapshotsToDatabase(ctx, nil, mockStorage)
+		assert.NoError(tt, err)
+		assert.Nil(tt, deletedSnapshots)
+		mockStorage.AssertNotCalled(tt, "BatchDeleteReadySnapshotsIfUnchanged", mock.Anything, mock.Anything)
 	})
 }
 
@@ -675,6 +748,10 @@ func TestGetOntapRestProviderForPool(t *testing.T) {
 }
 
 func TestProcessSnapshotSync(t *testing.T) {
+	original := deleteStaleAdHocSnapshots
+	deleteStaleAdHocSnapshots = true
+	t.Cleanup(func() { deleteStaleAdHocSnapshots = original })
+
 	ctx := context.Background()
 	ontapSnapshots := []*vsa.Snapshot{
 		// Adds entries to existingSSMap and updatedSSMap
@@ -702,7 +779,7 @@ func TestProcessSnapshotSync(t *testing.T) {
 			ExternalVolumeUUID: "test-volume-uuid-2",
 			Type:               SnapshotTypeAdHoc,
 		},
-		// Adds entries into wronglyDeletedSnapshotsMap
+		// Ad-hoc snapshot missing from the database is left unchanged.
 		{
 			ExternalUUID:       "test-snapshot-uuid-7",
 			ExternalVolumeUUID: "test-volume-uuid-3",
@@ -739,6 +816,19 @@ func TestProcessSnapshotSync(t *testing.T) {
 			Type:               SnapshotTypeBackup,
 			ExternalUUID:       "test-snapshot-uuid-3",
 			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-3"},
+			Volume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					ExternalUUID: "test-volume-uuid-1",
+				},
+			},
+		},
+		// Ad-hoc snapshot missing from ONTAP is deleted after a successful fetch.
+		{
+			BaseModel:          datamodel.BaseModel{ID: 4},
+			Type:               SnapshotTypeAdHoc,
+			ExternalUUID:       "test-snapshot-uuid-adhoc",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-adhoc"},
 			Volume: &datamodel.Volume{
 				BaseModel: datamodel.BaseModel{ID: 1},
 				VolumeAttributes: &datamodel.VolumeAttributes{
@@ -803,16 +893,552 @@ func TestProcessSnapshotSync(t *testing.T) {
 		},
 	}
 
-	newSSMap, updatedSSMap, wronglyDeletedSnapshotsMap, newIDs, updatedIDs, deletedIDs, wronglyDeletedIDs :=
-		processSnapshotSync(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots)
+	snapshotFetchSucceeded := map[string]struct{}{
+		"test-volume-uuid-1": {},
+		"test-volume-uuid-2": {},
+		"test-volume-uuid-3": {},
+	}
+	newSSMap, updatedSSMap, newIDs, updatedIDs, deletedIDs :=
+		processSnapshotSync(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots, snapshotFetchSucceeded)
 
 	assert.Len(t, newSSMap, 3)
 	assert.Len(t, updatedSSMap, 1)
-	assert.Len(t, wronglyDeletedSnapshotsMap, 1)
 	assert.Len(t, newIDs, 3)
 	assert.Len(t, updatedIDs, 1)
-	assert.Len(t, deletedIDs, 1)
-	assert.Len(t, wronglyDeletedIDs, 1)
+	assert.Equal(t, []int64{3, 4}, deletedIDs)
+}
+
+func TestProcessSnapshotSync_SkipsDeleteWhenSnapshotFetchFailed(t *testing.T) {
+	original := deleteStaleAdHocSnapshots
+	deleteStaleAdHocSnapshots = true
+	t.Cleanup(func() { deleteStaleAdHocSnapshots = original })
+
+	ctx := context.Background()
+	ontapVolumeMap := map[string]*vsa.Volume{
+		"test-volume-uuid-1": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("test-volume-1"),
+				UUID: nillable.ToPointer("test-volume-uuid-1"),
+			},
+		},
+	}
+	dbSnapshots := []*datamodel.Snapshot{
+		{
+			BaseModel:          datamodel.BaseModel{ID: 3, UUID: "scheduled-snapshot"},
+			Type:               SnapshotTypeScheduled,
+			ExternalUUID:       "test-snapshot-uuid-3",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-3"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-volume-uuid-1"},
+			},
+		},
+		{
+			BaseModel:          datamodel.BaseModel{ID: 4, UUID: "adhoc-snapshot"},
+			Type:               SnapshotTypeAdHoc,
+			ExternalUUID:       "test-snapshot-uuid-4",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "test-snapshot-uuid-4"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-volume-uuid-1"},
+			},
+		},
+	}
+
+	_, _, _, _, deletedIDs := processSnapshotSync(ctx, ontapVolumeMap, nil, nil, dbSnapshots, map[string]struct{}{})
+	assert.Empty(t, deletedIDs)
+
+	_, _, _, _, deletedAfterFetch := processSnapshotSync(ctx, ontapVolumeMap, nil, nil, dbSnapshots, map[string]struct{}{
+		"test-volume-uuid-1": {},
+	})
+	assert.Equal(t, []int64{3, 4}, deletedAfterFetch)
+}
+
+func TestProcessSnapshotSync_SkipsAdHocDeleteWhenFlagDisabled(t *testing.T) {
+	original := deleteStaleAdHocSnapshots
+	deleteStaleAdHocSnapshots = false
+	t.Cleanup(func() { deleteStaleAdHocSnapshots = original })
+
+	ctx := context.Background()
+	ontapVolumeMap := map[string]*vsa.Volume{
+		"test-volume-uuid-1": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("test-volume-1"),
+				UUID: nillable.ToPointer("test-volume-uuid-1"),
+			},
+		},
+	}
+	dbSnapshots := []*datamodel.Snapshot{
+		{
+			BaseModel:          datamodel.BaseModel{ID: 3},
+			Type:               SnapshotTypeScheduled,
+			ExternalUUID:       "scheduled-missing",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "scheduled-missing"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-volume-uuid-1"},
+			},
+		},
+		{
+			BaseModel:          datamodel.BaseModel{ID: 4},
+			Type:               SnapshotTypeAdHoc,
+			ExternalUUID:       "adhoc-missing",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "adhoc-missing"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-volume-uuid-1"},
+			},
+		},
+	}
+
+	_, _, _, _, deletedIDs := processSnapshotSync(ctx, ontapVolumeMap, nil, nil, dbSnapshots, map[string]struct{}{
+		"test-volume-uuid-1": {},
+	})
+	assert.Equal(t, []int64{3}, deletedIDs)
+}
+
+func TestProcessSnapshotSync_SkipsSnapshotWhenDatabaseVolumeMissing(t *testing.T) {
+	ctx := context.Background()
+	ontapVolumeMap := map[string]*vsa.Volume{
+		"test-volume-uuid-1": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("test-volume-1"),
+				UUID: nillable.ToPointer("test-volume-uuid-1"),
+			},
+		},
+		"": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("volume-without-uuid"),
+			},
+		},
+	}
+	dbSnapshots := []*datamodel.Snapshot{
+		{
+			BaseModel:          datamodel.BaseModel{ID: 3},
+			Type:               SnapshotTypeBackup,
+			ExternalUUID:       "missing-on-ontap",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "missing-on-ontap"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "test-volume-uuid-1"},
+			},
+		},
+		{
+			BaseModel:          datamodel.BaseModel{ID: 9},
+			Type:               SnapshotTypeScheduled,
+			ExternalUUID:       "nil-volume-snapshot",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "nil-volume-snapshot"},
+		},
+		{
+			BaseModel:          datamodel.BaseModel{ID: 10},
+			Type:               SnapshotTypeScheduled,
+			ExternalUUID:       "nil-attributes-snapshot",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "nil-attributes-snapshot"},
+			Volume:             &datamodel.Volume{},
+		},
+		{
+			BaseModel:          datamodel.BaseModel{ID: 11},
+			Type:               SnapshotTypeScheduled,
+			ExternalUUID:       "empty-volume-uuid-snapshot",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "empty-volume-uuid-snapshot"},
+			Volume: &datamodel.Volume{
+				VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: ""},
+			},
+		},
+	}
+
+	_, _, _, _, deletedIDs := processSnapshotSync(ctx, ontapVolumeMap, nil, nil, dbSnapshots, map[string]struct{}{
+		"test-volume-uuid-1": {},
+		"":                   {},
+	})
+	assert.Equal(t, []int64{3}, deletedIDs)
+}
+
+func TestProcessSnapshotSync_DoesNotDeleteSnapshotAbsentFromDatabaseBaseline(t *testing.T) {
+	ctx := context.Background()
+	ontapVolumeMap := map[string]*vsa.Volume{
+		"vol-uuid": {ExternalUUID: "vol-uuid", Volume: ontaprestmodel.Volume{Type: nillable.ToPointer("rw")}},
+	}
+	createdDuringSync := []*vsa.Snapshot{
+		{
+			Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("customer-snap")},
+			ExternalUUID:       "adhoc-created-during-sync",
+			ExternalVolumeUUID: "vol-uuid",
+			Type:               SnapshotTypeAdHoc,
+		},
+		{
+			Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("hourly.1")},
+			ExternalUUID:       "scheduled-created-during-sync",
+			ExternalVolumeUUID: "vol-uuid",
+			Type:               SnapshotTypeScheduled,
+		},
+	}
+
+	_, _, newIDs, _, deletedIDs := processSnapshotSync(ctx, ontapVolumeMap, createdDuringSync, nil, nil, map[string]struct{}{"vol-uuid": {}})
+
+	assert.Empty(t, deletedIDs)
+	assert.Equal(t, []string{"scheduled-created-during-sync.vol-uuid"}, newIDs)
+}
+
+// TestProcessSnapshotSync_ImportsAdHocOnCloneWhenParentHasReadyUUID covers the isCloned
+// import gate: a non-dp volume's ad-hoc ONTAP snapshot is imported when another READY
+// snapshot in the pool already carries the same external UUID (clone inherited from parent).
+func TestProcessSnapshotSync_ImportsAdHocOnCloneWhenParentHasReadyUUID(t *testing.T) {
+	ctx := context.Background()
+	sharedExternalUUID := "shared-clone-snapshot-uuid"
+
+	dbSnapshots := []*datamodel.Snapshot{
+		{
+			BaseModel:    datamodel.BaseModel{ID: 1},
+			Name:         "parent-adhoc",
+			Type:         SnapshotTypeAdHoc,
+			ExternalUUID: sharedExternalUUID,
+			SnapshotAttributes: &datamodel.SnapshotAttributes{
+				ExternalUUID:           sharedExternalUUID,
+				SizeInBytes:            100,
+				LogicalSizeUsedInBytes: 100,
+			},
+			Volume: &datamodel.Volume{
+				BaseModel: datamodel.BaseModel{ID: 1},
+				VolumeAttributes: &datamodel.VolumeAttributes{
+					ExternalUUID: "parent-volume-uuid",
+				},
+			},
+		},
+	}
+
+	// Clone volume is rw (non-dp). Without isCloned, this ad-hoc would be skipped.
+	ontapVolumeMap := map[string]*vsa.Volume{
+		"parent-volume-uuid": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("parent-volume"),
+				UUID: nillable.ToPointer("parent-volume-uuid"),
+			},
+			ExternalUUID: "parent-volume-uuid",
+		},
+		"clone-volume-uuid": {
+			Volume: ontaprestmodel.Volume{
+				Name: nillable.ToPointer("clone-volume"),
+				UUID: nillable.ToPointer("clone-volume-uuid"),
+			},
+			ExternalUUID: "clone-volume-uuid",
+		},
+	}
+
+	ontapSnapshots := []*vsa.Snapshot{
+		// Parent still present in ONTAP so it is not selected for delete.
+		{
+			Snapshot:               ontaprestmodel.Snapshot{Name: nillable.ToPointer("parent-adhoc")},
+			ExternalUUID:           sharedExternalUUID,
+			ExternalVolumeUUID:     "parent-volume-uuid",
+			Type:                   SnapshotTypeAdHoc,
+			SizeInBytes:            100,
+			LogicalSizeUsedInBytes: 100,
+		},
+		{
+			Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("clone-inherited-adhoc")},
+			ExternalUUID:       sharedExternalUUID,
+			ExternalVolumeUUID: "clone-volume-uuid",
+			Type:               SnapshotTypeAdHoc,
+		},
+		// Control: distinct ad-hoc UUID on a non-dp volume is not imported.
+		{
+			Snapshot:           ontaprestmodel.Snapshot{Name: nillable.ToPointer("unrelated-adhoc")},
+			ExternalUUID:       "unrelated-adhoc-uuid",
+			ExternalVolumeUUID: "clone-volume-uuid",
+			Type:               SnapshotTypeAdHoc,
+		},
+	}
+
+	_, _, newIDs, _, deletedIDs := processSnapshotSync(
+		ctx,
+		ontapVolumeMap,
+		ontapSnapshots,
+		nil,
+		dbSnapshots,
+		map[string]struct{}{
+			"parent-volume-uuid": {},
+			"clone-volume-uuid":  {},
+		},
+	)
+
+	assert.Empty(t, deletedIDs)
+	assert.Equal(t, []string{sharedExternalUUID + ".clone-volume-uuid"}, newIDs)
+}
+
+func TestSnapshotNeedsSizeOrNameUpdate(t *testing.T) {
+	ontap := &vsa.Snapshot{
+		Snapshot:               ontaprestmodel.Snapshot{Name: nillable.ToPointer("snap-a")},
+		SizeInBytes:            100,
+		LogicalSizeUsedInBytes: 50,
+	}
+
+	t.Run("nil_inputs", func(tt *testing.T) {
+		assert.False(tt, snapshotNeedsSizeOrNameUpdate(nil, ontap))
+		assert.False(tt, snapshotNeedsSizeOrNameUpdate(&datamodel.Snapshot{}, nil))
+	})
+
+	t.Run("nil_snapshot_attributes_needs_update", func(tt *testing.T) {
+		db := &datamodel.Snapshot{Name: "snap-a"}
+		assert.True(tt, snapshotNeedsSizeOrNameUpdate(db, ontap))
+	})
+
+	t.Run("same_size_and_name_no_update", func(tt *testing.T) {
+		db := &datamodel.Snapshot{
+			Name: "snap-a",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{
+				SizeInBytes:            100,
+				LogicalSizeUsedInBytes: 50,
+			},
+		}
+		assert.False(tt, snapshotNeedsSizeOrNameUpdate(db, ontap))
+	})
+
+	t.Run("size_change_needs_update", func(tt *testing.T) {
+		db := &datamodel.Snapshot{
+			Name: "snap-a",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{
+				SizeInBytes:            99,
+				LogicalSizeUsedInBytes: 50,
+			},
+		}
+		assert.True(tt, snapshotNeedsSizeOrNameUpdate(db, ontap))
+	})
+
+	t.Run("nil_ontap_name_does_not_panic_or_force_name_update", func(tt *testing.T) {
+		db := &datamodel.Snapshot{
+			Name: "snap-a",
+			SnapshotAttributes: &datamodel.SnapshotAttributes{
+				SizeInBytes:            100,
+				LogicalSizeUsedInBytes: 50,
+			},
+		}
+		assert.False(tt, snapshotNeedsSizeOrNameUpdate(db, &vsa.Snapshot{
+			SizeInBytes:            100,
+			LogicalSizeUsedInBytes: 50,
+		}))
+	})
+}
+
+func TestSnapshotsObservedForDeleteUsesBaselineUpdatedAt(t *testing.T) {
+	observedAt := time.Date(2026, 10, 14, 1, 2, 3, 0, time.UTC)
+	dbSnapshots := []*datamodel.Snapshot{
+		{BaseModel: datamodel.BaseModel{ID: 3, UpdatedAt: observedAt}},
+		nil,
+		{BaseModel: datamodel.BaseModel{ID: 4, UpdatedAt: observedAt.Add(time.Minute)}},
+	}
+
+	observed := snapshotsObservedForDelete(dbSnapshots, []int64{4, 99, 3})
+
+	require.Len(t, observed, 2)
+	assert.Equal(t, int64(4), observed[0].ID)
+	assert.True(t, observedAt.Add(time.Minute).Equal(observed[0].UpdatedAt))
+	assert.Equal(t, int64(3), observed[1].ID)
+	assert.True(t, observedAt.Equal(observed[1].UpdatedAt))
+	assert.Nil(t, snapshotsObservedForDelete(dbSnapshots, nil))
+}
+
+func TestConfirmSnapshotsGoneFromOntap(t *testing.T) {
+	ctx := context.Background()
+	gone := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 1},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-gone"},
+		Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+	}
+	stillThere := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 2},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-present"},
+		Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+	}
+	uncertain := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 3},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-error"},
+		Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+	}
+	volumeMissing := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 4},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-vol-missing"},
+		Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-missing"}},
+	}
+	offlineVolume := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 5},
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-offline"},
+		Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-offline"}},
+	}
+	missingIDs := &datamodel.Snapshot{
+		BaseModel: datamodel.BaseModel{ID: 6},
+		Volume:    &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: ""}},
+	}
+
+	t.Run("empty_or_nil_provider", func(tt *testing.T) {
+		assert.Nil(tt, confirmSnapshotsGoneFromOntap(ctx, nil, []*datamodel.Snapshot{gone}))
+		assert.Nil(tt, confirmSnapshotsGoneFromOntap(ctx, new(vsa.MockProvider), nil))
+	})
+
+	t.Run("keeps_only_clear_snapshot_not_found", func(tt *testing.T) {
+		mockProvider := new(vsa.MockProvider)
+		mockProvider.On("GetSnapshot", "snap-gone", "vol-1").
+			Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, customerrors.NewNotFoundErr("Snapshot", nil)))
+		mockProvider.On("GetSnapshot", "snap-present", "vol-1").
+			Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snap-present"}}, nil)
+		mockProvider.On("GetSnapshot", "snap-error", "vol-1").
+			Return(nil, errors.New("temporary ontap error"))
+		mockProvider.On("GetSnapshot", "snap-vol-missing", "vol-missing").
+			Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, customerrors.NewNotFoundErr("Volume", nil)))
+		mockProvider.On("GetSnapshot", "snap-offline", "vol-offline").
+			Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, customerrors.NewNotFoundErr("Snapshot on offline volume", nil)))
+
+		confirmed := confirmSnapshotsGoneFromOntap(ctx, mockProvider, []*datamodel.Snapshot{
+			gone, stillThere, uncertain, volumeMissing, offlineVolume, missingIDs, nil,
+		})
+
+		require.Len(tt, confirmed, 1)
+		assert.Equal(tt, int64(1), confirmed[0].ID)
+		mockProvider.AssertExpectations(tt)
+	})
+
+	t.Run("cancelled_context_stops_queued_confirms", func(tt *testing.T) {
+		originalLimit := ontapSnapshotConfirmConcurrencyLimit
+		ontapSnapshotConfirmConcurrencyLimit = 1
+		tt.Cleanup(func() { ontapSnapshotConfirmConcurrencyLimit = originalLimit })
+
+		first := &datamodel.Snapshot{
+			BaseModel:          datamodel.BaseModel{ID: 10},
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-a"},
+			Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+		}
+		second := &datamodel.Snapshot{
+			BaseModel:          datamodel.BaseModel{ID: 11},
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-b"},
+			Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		started := make(chan struct{})
+		release := make(chan struct{})
+		var getSnapshotCalls atomic.Int32
+
+		mockProvider := new(vsa.MockProvider)
+		// Whichever candidate wins the single slot blocks until released; the other must wait
+		// on the semaphore and must not call GetSnapshot after cancel.
+		mockProvider.On("GetSnapshot", mock.AnythingOfType("string"), "vol-1").Run(func(mock.Arguments) {
+			if getSnapshotCalls.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+		}).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, customerrors.NewNotFoundErr("Snapshot", nil)))
+
+		done := make(chan []*datamodel.Snapshot, 1)
+		go func() {
+			done <- confirmSnapshotsGoneFromOntap(ctx, mockProvider, []*datamodel.Snapshot{first, second})
+		}()
+
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			tt.Fatal("timed out waiting for in-flight GetSnapshot")
+		}
+		assert.Equal(tt, int32(1), getSnapshotCalls.Load(), "only one GetSnapshot should be in flight with concurrency 1")
+		cancel()
+		// Queued worker must observe cancel while still waiting for the semaphore slot.
+		time.Sleep(50 * time.Millisecond)
+		assert.Equal(tt, int32(1), getSnapshotCalls.Load(), "queued confirm must not call GetSnapshot after cancel")
+		close(release)
+
+		select {
+		case confirmed := <-done:
+			// In-flight call may still complete after cancel; callers must abort on ctx.Err().
+			require.LessOrEqual(tt, len(confirmed), 1)
+			assert.Equal(tt, int32(1), getSnapshotCalls.Load())
+		case <-time.After(2 * time.Second):
+			tt.Fatal("timed out waiting for confirmSnapshotsGoneFromOntap to return after cancel")
+		}
+	})
+}
+
+func TestPositiveConcurrency(t *testing.T) {
+	assert.Equal(t, 5, positiveConcurrency(0, 5))
+	assert.Equal(t, 5, positiveConcurrency(-1, 5))
+	assert.Equal(t, 20, positiveConcurrency(20, 5))
+}
+
+func TestConfirmSnapshotsGoneFromOntap_UsesConfirmConcurrencyNotFetch(t *testing.T) {
+	// Fetch stays at 1 so a bug that still used fetch concurrency would serialize;
+	// confirm concurrency 3 should allow three in-flight GetSnapshot calls.
+	originalFetch := ontapSnapshotFetchConcurrencyLimit
+	originalConfirm := ontapSnapshotConfirmConcurrencyLimit
+	ontapSnapshotFetchConcurrencyLimit = 1
+	ontapSnapshotConfirmConcurrencyLimit = 3
+	t.Cleanup(func() {
+		ontapSnapshotFetchConcurrencyLimit = originalFetch
+		ontapSnapshotConfirmConcurrencyLimit = originalConfirm
+	})
+
+	started := make(chan struct{}, 3)
+	release := make(chan struct{})
+	mockProvider := new(vsa.MockProvider)
+	mockProvider.On("GetSnapshot", mock.AnythingOfType("string"), "vol-1").Run(func(mock.Arguments) {
+		started <- struct{}{}
+		<-release
+	}).Return(nil, vsaerrors.NewVCPError(vsaerrors.ErrResourceNotFound, customerrors.NewNotFoundErr("Snapshot", nil)))
+
+	candidates := make([]*datamodel.Snapshot, 3)
+	for i := 0; i < 3; i++ {
+		candidates[i] = &datamodel.Snapshot{
+			BaseModel:          datamodel.BaseModel{ID: int64(i + 1)},
+			SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: fmt.Sprintf("snap-%d", i)},
+			Volume:             &datamodel.Volume{VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-1"}},
+		}
+	}
+
+	done := make(chan []*datamodel.Snapshot, 1)
+	go func() {
+		done <- confirmSnapshotsGoneFromOntap(context.Background(), mockProvider, candidates)
+	}()
+
+	for i := 0; i < 3; i++ {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("expected 3 concurrent GetSnapshot calls with confirm concurrency 3; got %d starters", i)
+		}
+	}
+	close(release)
+
+	select {
+	case confirmed := <-done:
+		require.Len(t, confirmed, 3)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for confirmSnapshotsGoneFromOntap")
+	}
+}
+
+func TestTryAcquireSemaphore_RespectsCancellation(t *testing.T) {
+	t.Run("blocked_waiter_unblocks_on_cancel_without_slot", func(tt *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		sem := make(chan struct{}, 1)
+		sem <- struct{}{} // fill the only slot
+
+		done := make(chan bool, 1)
+		go func() {
+			done <- tryAcquireSemaphore(ctx, sem)
+		}()
+
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+
+		select {
+		case acquired := <-done:
+			assert.False(tt, acquired)
+			assert.Len(tt, sem, 1, "cancelled waiter must not consume a slot")
+		case <-time.After(2 * time.Second):
+			tt.Fatal("tryAcquireSemaphore did not return after context cancel")
+		}
+	})
+
+	t.Run("prefers_cancel_when_slot_and_done_both_ready", func(tt *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		sem := make(chan struct{}, 1)
+
+		assert.False(tt, tryAcquireSemaphore(ctx, sem))
+		assert.Len(tt, sem, 0, "cancelled acquire must not take a free slot")
+	})
 }
 
 func TestSyncSnapshotActivity_ProcessSnapshots(t *testing.T) {
@@ -822,7 +1448,7 @@ func TestSyncSnapshotActivity_ProcessSnapshots(t *testing.T) {
 	ontapSnapshots := []*vsa.Snapshot{{ExternalUUID: "snap-uuid", ExternalVolumeUUID: "vol-uuid", Type: SnapshotTypeAdHoc, SizeInBytes: 1, LogicalSizeUsedInBytes: 1}}
 	dbVolumeMap := map[string]*datamodel.Volume{"vol-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "vol-uuid"}, VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-uuid"}}}
 	dbSnapshots := []*datamodel.Snapshot{}
-	result, err := activity.ProcessSnapshots(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots)
+	result, err := activity.ProcessSnapshots(ctx, ontapVolumeMap, ontapSnapshots, dbVolumeMap, dbSnapshots, map[string]struct{}{"vol-uuid": {}})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -831,9 +1457,9 @@ func TestSyncSnapshotActivity_SyncDeletedSnapshotsToDatabase(t *testing.T) {
 	ctx := context.TODO()
 	mockStorage := database.NewMockStorage(t)
 	activity := SyncSnapshotActivity{SE: mockStorage}
-	deleteIDs := []int64{1, 2}
-	mockStorage.On("BatchDeleteSnapshots", ctx, deleteIDs).Return([]*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{ID: 1}}, {BaseModel: datamodel.BaseModel{ID: 2}}}, nil)
-	result, err := activity.SyncDeletedSnapshotsToDatabase(ctx, deleteIDs)
+	snapshots := []*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{ID: 1}}, {BaseModel: datamodel.BaseModel{ID: 2}}}
+	mockStorage.On("BatchDeleteReadySnapshotsIfUnchanged", ctx, snapshots).Return([]*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{ID: 1}}, {BaseModel: datamodel.BaseModel{ID: 2}}}, nil)
+	result, err := activity.SyncDeletedSnapshotsToDatabase(ctx, snapshots)
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
 	mockStorage.AssertExpectations(t)
@@ -846,6 +1472,7 @@ func TestSyncSnapshotActivity_SyncNewSnapshotsToDatabase(t *testing.T) {
 	dbVolumeMap := map[string]*datamodel.Volume{"vol-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "vol-uuid"}, VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-uuid"}}}
 	pool := &datamodel.Pool{AccountID: 1}
 	newSSMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid", ExternalVolumeUUID: "vol-uuid", Type: SnapshotTypeAdHoc, Snapshot: ontaprestmodel.Snapshot{Name: nillable.GetStringPtr("snap")}}}
+	mockStorage.On("ListSnapshotVolumeExternalUUIDs", ctx, []int64{1}, []string{"snap-uuid"}).Return([]database.SnapshotVolumeExternalUUID{}, nil)
 	mockStorage.On("BatchCreateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
 		return len(snapshots) == 1 &&
 			snapshots[0].ExternalUUID == "snap-uuid" &&
@@ -863,31 +1490,19 @@ func TestSyncSnapshotActivity_SyncUpdatedSnapshotsToDatabase(t *testing.T) {
 	ctx := context.TODO()
 	mockStorage := database.NewMockStorage(t)
 	activity := SyncSnapshotActivity{SE: mockStorage}
-	dbSnapshotsMap := map[string]*datamodel.Snapshot{"snap-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "snap-uuid"}, ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}, State: datamodel.LifeCycleStateREADY, StateDetails: datamodel.LifeCycleStateReadyDetails}}
+	dbSnapshotsMap := map[string]*datamodel.Snapshot{"snap-uuid.vol-uuid": {BaseModel: datamodel.BaseModel{ID: 1, UUID: "snap-uuid"}, ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}, State: datamodel.LifeCycleStateREADY, StateDetails: datamodel.LifeCycleStateReadyDetails}}
 	updatedSSMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid", SizeInBytes: 1, LogicalSizeUsedInBytes: 1, Snapshot: ontaprestmodel.Snapshot{Name: nillable.GetStringPtr("snap")}}}
 	mockStorage.On("BatchUpdateSnapshots", ctx, mock.MatchedBy(func(snapshots []*datamodel.Snapshot) bool {
 		return len(snapshots) == 1 &&
 			snapshots[0].ExternalUUID == "snap-uuid" &&
 			snapshots[0].SnapshotAttributes != nil &&
-			snapshots[0].SnapshotAttributes.ExternalUUID == "snap-uuid"
+			snapshots[0].SnapshotAttributes.ExternalUUID == "snap-uuid" &&
+			snapshots[0].State == "" &&
+			snapshots[0].StateDetails == ""
 	})).Return(nil)
 	result, err := activity.SyncUpdatedSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, updatedSSMap, dbSnapshotsMap)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
-	mockStorage.AssertExpectations(t)
-}
-
-func TestSyncSnapshotActivity_SyncWronglyDeletedSnapshotsToDatabase(t *testing.T) {
-	ctx := context.TODO()
-	mockStorage := database.NewMockStorage(t)
-	activity := SyncSnapshotActivity{SE: mockStorage}
-	wronglyDeletedSnapshotsMap := map[string]*vsa.Snapshot{"snap-uuid.vol-uuid": {ExternalUUID: "snap-uuid"}}
-	mockStorage.On("BatchGetWronglyDeletedSnapshots", ctx, []string{"snap-uuid"}).Return([]*datamodel.Snapshot{{ExternalUUID: "snap-uuid", SnapshotAttributes: &datamodel.SnapshotAttributes{}}}, nil)
-	restored := []*datamodel.Snapshot{{BaseModel: datamodel.BaseModel{UUID: "restored-only"}}}
-	mockStorage.On("BatchUnDeleteSnapshots", ctx, mock.Anything).Return(restored, nil)
-	result, err := activity.SyncWronglyDeletedSnapshotsToDatabase(ctx, []string{"snap-uuid.vol-uuid"}, wronglyDeletedSnapshotsMap)
-	assert.NoError(t, err)
-	assert.Equal(t, restored, result)
 	mockStorage.AssertExpectations(t)
 }
 
@@ -947,6 +1562,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Contains(t, result.OntapVolumeMap, "vol-uuid")
+	assert.Contains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	assert.Len(t, result.OntapSnapshots, 1)
 	mockProvider.AssertExpectations(t)
 }
@@ -1753,6 +2369,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_GetSnapshotsErr
 	result, err := activity.GetOntapVolumesAndSnapshotsForPool(ctx, pool)
 	assert.NoError(t, err) // Should not return error, just log it
 	assert.NotNil(t, result)
+	assert.NotContains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	assert.Len(t, result.OntapSnapshots, 0) // No snapshots due to error
 	mockProvider.AssertExpectations(t)
 }
@@ -1796,6 +2413,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_CLIAPIFailsREST
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Contains(t, result.OntapVolumeMap, "vol-uuid")
+	assert.Contains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	assert.Len(t, result.OntapSnapshots, 1) // Snapshot from REST API fallback
 	mockProvider.AssertExpectations(t)
 }
@@ -1881,8 +2499,10 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_GetOntapDataFails(t *testi
 		PoolCredentials: &datamodel.PoolCredentials{Password: "pass"},
 	}
 
-	// Mock successful pool fetch
+	// Mock successful pool fetch and the database baseline that is read before ONTAP.
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{}, nil)
+	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Return([]*datamodel.Snapshot{}, nil)
 
 	// Mock provider to return error for GetVolumes
 	mockProvider := new(vsa.MockProvider)
@@ -1931,26 +2551,15 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_GetDBDataFails(t *testing.
 		PoolCredentials: &datamodel.PoolCredentials{Password: "pass"},
 	}
 
-	// Mock successful pool fetch and ONTAP data
+	// Database baseline is read before ONTAP, so this failure returns without calling the provider.
 	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
 	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return(nil, errors.New("failed to get volumes from database"))
-
-	// Mock provider
-	mockProvider := new(vsa.MockProvider)
-	mockProvider.On("GetVolumes").Return([]*vsa.Volume{}, nil)
-
-	originalGetProviderForPool := GetOntapRestProviderForPool
-	GetOntapRestProviderForPool = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
-		return mockProvider, nil
-	}
-	defer func() { GetOntapRestProviderForPool = originalGetProviderForPool }()
 
 	_, err := env.ExecuteActivity(activityFunc, poolIdentifier)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "GetDBVolumeAndSnapshotsForPool Failed")
 	mockStorage.AssertExpectations(t)
-	mockProvider.AssertExpectations(t)
 }
 
 func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_ProcessSnapshotsFails(t *testing.T) {
@@ -2057,6 +2666,49 @@ func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_SuccessfulExecution(t *tes
 	mockProvider.AssertExpectations(t)
 }
 
+func TestSyncSnapshotActivity_ProcessPoolSnapshotSync_ReadsDatabaseBeforeOntap(t *testing.T) {
+	mockStorage := database.NewMockStorage(t)
+	activity := &SyncSnapshotActivity{SE: mockStorage}
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	activityFunc := func(ctx context.Context, poolIdentifier *database.PoolIdentifier) error {
+		return testProcessPoolSnapshotSyncWrapper(ctx, activity, poolIdentifier)
+	}
+	env.RegisterActivity(activityFunc)
+
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       1,
+		PoolCredentials: &datamodel.PoolCredentials{Password: "pass"},
+	}
+	var order []string
+	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Run(func(mock.Arguments) {
+		order = append(order, "db-volumes")
+	}).Return([]*datamodel.Volume{}, nil)
+	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, mock.AnythingOfType("[]int64")).Run(func(mock.Arguments) {
+		order = append(order, "db-snapshots")
+	}).Return([]*datamodel.Snapshot{}, nil)
+
+	mockProvider := new(vsa.MockProvider)
+	mockProvider.On("GetVolumes").Run(func(mock.Arguments) {
+		order = append(order, "ontap-volumes")
+	}).Return([]*vsa.Volume{}, nil)
+	originalGetProviderForPool := GetOntapRestProviderForPool
+	GetOntapRestProviderForPool = func(ctx context.Context, se database.Storage, pool *datamodel.Pool) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	defer func() { GetOntapRestProviderForPool = originalGetProviderForPool }()
+
+	_, err := env.ExecuteActivity(activityFunc, &database.PoolIdentifier{UUID: "test-pool-uuid", Name: "test-pool", AccountID: 1})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"db-volumes", "db-snapshots", "ontap-volumes"}, order)
+	mockStorage.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
+}
+
 func TestGetDBVolumeAndSnapshotsForPool_SkipsDeletingAndDeleted(t *testing.T) {
 	mockStorage := database.NewMockStorage(t)
 	activity := &SyncSnapshotActivity{SE: mockStorage}
@@ -2078,6 +2730,78 @@ func TestGetDBVolumeAndSnapshotsForPool_SkipsDeletingAndDeleted(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.DBVolumeMap, 1)
 	assert.Equal(t, ready, result.DBVolumeMap["ext-ready"])
+}
+
+func TestProcessPoolSnapshotSync_ConfirmBeforeDeleteSkipsWhenOntapStillHasSnapshot(t *testing.T) {
+	originalAdHoc := deleteStaleAdHocSnapshots
+	deleteStaleAdHocSnapshots = true
+	t.Cleanup(func() { deleteStaleAdHocSnapshots = originalAdHoc })
+
+	originalHydrate := hydrateBatchSnapshotsToCCFE
+	hydrateBatchSnapshotsToCCFE = func(ctx context.Context, createdSnapshots, deletedSnapshots []*datamodel.Snapshot) error {
+		assert.Empty(t, deletedSnapshots)
+		return nil
+	}
+	t.Cleanup(func() { hydrateBatchSnapshotsToCCFE = originalHydrate })
+
+	mockStorage := database.NewMockStorage(t)
+	activity := &SyncSnapshotActivity{SE: mockStorage}
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestActivityEnvironment()
+	activityFunc := func(ctx context.Context, poolIdentifier *database.PoolIdentifier) error {
+		return testProcessPoolSnapshotSyncWrapper(ctx, activity, poolIdentifier)
+	}
+	env.RegisterActivity(activityFunc)
+
+	pool := &datamodel.Pool{
+		BaseModel:       datamodel.BaseModel{ID: 1, UUID: "test-pool-uuid"},
+		Name:            "test-pool",
+		AccountID:       1,
+		PoolCredentials: &datamodel.PoolCredentials{Password: "pass"},
+	}
+	volume := &datamodel.Volume{
+		BaseModel:        datamodel.BaseModel{ID: 10, UUID: "vol-uuid"},
+		State:            datamodel.LifeCycleStateREADY,
+		VolumeAttributes: &datamodel.VolumeAttributes{ExternalUUID: "vol-uuid"},
+	}
+	stale := &datamodel.Snapshot{
+		BaseModel:          datamodel.BaseModel{ID: 99, UUID: "db-snap", UpdatedAt: time.Date(2026, 10, 14, 1, 0, 0, 0, time.UTC)},
+		Name:               "hourly.stale",
+		Type:               SnapshotTypeScheduled,
+		SnapshotAttributes: &datamodel.SnapshotAttributes{ExternalUUID: "snap-still-on-ontap"},
+		Volume:             volume,
+	}
+
+	mockStorage.On("GetPool", mock.Anything, "test-pool-uuid", int64(1)).Return(&datamodel.PoolView{Pool: *pool}, nil)
+	mockStorage.On("GetVolumesByPoolIDNoPreload", mock.Anything, int64(1)).Return([]*datamodel.Volume{volume}, nil)
+	mockStorage.On("GetSnapshotsByVolumeIDs", mock.Anything, []int64{10}).Return([]*datamodel.Snapshot{stale}, nil)
+	mockStorage.AssertNotCalled(t, "BatchDeleteReadySnapshotsIfUnchanged", mock.Anything, mock.Anything)
+
+	mockProvider := new(vsa.MockProvider)
+	mockProvider.On("GetVolumes").Return([]*vsa.Volume{{
+		ExternalUUID: "vol-uuid",
+		Volume: ontaprestmodel.Volume{
+			Name:      nillable.ToPointer("vol-name"),
+			UUID:      nillable.ToPointer("vol-uuid"),
+			IsSvmRoot: nillable.ToPointer(false),
+			Svm:       &ontaprestmodel.VolumeInlineSvm{Name: nillable.ToPointer("svm-name")},
+		},
+	}}, nil)
+	// List omits the snapshot (incomplete/lag), but get-by-UUID still finds it.
+	mockProvider.On("GetSnapshotsViaCLIAPI", mock.Anything, "vol-name", "svm-name").Return([]*vsa.Snapshot{}, nil)
+	mockProvider.On("GetSnapshot", "snap-still-on-ontap", "vol-uuid").
+		Return(&vsa.SnapshotProviderResponse{ProviderResponse: vsa.ProviderResponse{ExternalUUID: "snap-still-on-ontap"}}, nil)
+
+	originalGetProviderForPool := GetOntapRestProviderForPool
+	GetOntapRestProviderForPool = func(ctx context.Context, se database.Storage, p *datamodel.Pool) (vsa.Provider, error) {
+		return mockProvider, nil
+	}
+	t.Cleanup(func() { GetOntapRestProviderForPool = originalGetProviderForPool })
+
+	_, err := env.ExecuteActivity(activityFunc, &database.PoolIdentifier{UUID: "test-pool-uuid", Name: "test-pool", AccountID: 1})
+	assert.NoError(t, err)
+	mockStorage.AssertExpectations(t)
+	mockProvider.AssertExpectations(t)
 }
 
 func TestGetOntapRestProviderForPoolFastConn(t *testing.T) {
@@ -2349,6 +3073,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_VolumeMissingNa
 	result, err := activity.GetOntapVolumesAndSnapshotsForPool(ctx, pool)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.NotContains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	// Volume should be filtered out, so no snapshots
 	assert.Len(t, result.OntapSnapshots, 0)
 	mockProvider.AssertExpectations(t)
@@ -2383,6 +3108,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_CLIAPIFailsUUID
 	result, err := activity.GetOntapVolumesAndSnapshotsForPool(ctx, pool)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.NotContains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	// No snapshots since fallback couldn't happen
 	assert.Len(t, result.OntapSnapshots, 0)
 	mockProvider.AssertExpectations(t)
@@ -2418,6 +3144,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_CLIAPIFailsREST
 	assert.NoError(t, err) // Should not return error, just log it
 	assert.NotNil(t, result)
 	assert.Contains(t, result.OntapVolumeMap, "vol-uuid")
+	assert.NotContains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	// No snapshots due to both APIs failing
 	assert.Len(t, result.OntapSnapshots, 0)
 	mockProvider.AssertExpectations(t)
@@ -2452,6 +3179,7 @@ func TestSyncSnapshotActivity_GetOntapVolumesAndSnapshotsForPool_VolumeMissingNa
 	assert.NotNil(t, result)
 	// Volume without name gets filtered out by filterOntapVolumesAndSnapshots
 	assert.NotContains(t, result.OntapVolumeMap, "vol-uuid")
+	assert.NotContains(t, result.SnapshotFetchSucceeded, "vol-uuid")
 	// No snapshots due to REST API failure and volume being filtered out
 	assert.Len(t, result.OntapSnapshots, 0)
 	// But REST API should still be called (verified by AssertExpectations)

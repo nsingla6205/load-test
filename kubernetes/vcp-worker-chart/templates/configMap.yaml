@@ -96,7 +96,9 @@ data:
   HYBRID_REPLICATION_ENABLED: {{$.Values.workerConfig.hybridReplicationEnabled | quote }}
   BIDI_REPLICATION_ENABLED: {{$.Values.workerConfig.bidiReplicationEnabled | quote }}
   SNAPSHOT_SYNC_MAX_CONCURRENCY: {{$.Values.workerConfig.snapshotSyncMaxConcurrency | quote }}
+  SNAPSHOT_SYNC_DELETE_STALE_ADHOC: {{$.Values.workerConfig.snapshotSyncDeleteStaleAdhoc | quote }}
   ONTAP_SNAPSHOT_FETCH_MAX_CONCURRENCY: {{$.Values.workerConfig.ontapSnapshotFetchConcurrencyLimit | quote }}
+  ONTAP_SNAPSHOT_CONFIRM_MAX_CONCURRENCY: {{$.Values.workerConfig.ontapSnapshotConfirmConcurrencyLimit | quote }}
   SNAPSHOT_SYNC_PARENT_WORKFLOW_BATCH_SIZE: {{$.Values.workerConfig.snapshotSyncParentWorkflowBatchSize | quote }}
   SNAPSHOT_SYNC_CHILD_WORKFLOW_TIMEOUT_MINUTES: {{$.Values.workerConfig.snapshotSyncChildWorkflowTimeout | quote }}
   SNAPSHOT_SYNC_CHILD_WORKFLOW_ACTIVITY_BATCH_SIZE: {{$.Values.workerConfig.snapshotSyncChildWorkflowActivityBatchSize | quote }}

@@ -451,7 +451,6 @@ func DefaultDependencies() *Dependencies {
         SyncDeletedSnapshotsToDatabase:         _syncDeletedSnapshotsToDatabase,
         SyncNewSnapshotsToDatabase:            _syncNewSnapshotsToDatabase,
         SyncUpdatedSnapshotsToDatabase:        _syncUpdatedSnapshotsToDatabase,
-        SyncWronglyDeletedSnapshotsToDatabase: _syncWronglyDeletedSnapshotsToDatabase,
     }
 }
 ```

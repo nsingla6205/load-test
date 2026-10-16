@@ -89,7 +89,9 @@ workerConfig:
   enableJobResourceUuidIndex: true
   enableCloneInfoRefresh: true
   snapshotSyncMaxConcurrency: 20
+  snapshotSyncDeleteStaleAdhoc: true
   ontapSnapshotFetchConcurrencyLimit: 5
+  ontapSnapshotConfirmConcurrencyLimit: 20
   snapshotSyncParentWorkflowBatchSize: 100
   snapshotSyncChildWorkflowTimeout: 10
   snapshotSyncChildWorkflowActivityBatchSize: 10
