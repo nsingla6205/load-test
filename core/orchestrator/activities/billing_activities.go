@@ -9,6 +9,7 @@ import (
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/env"
+	utilErrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/utils/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/workflow_engine/util"
 )
 
@@ -71,14 +72,6 @@ func (a *BillingActivity) CreateBillingLedgerEntry(ctx context.Context, input Bi
 	return nil
 }
 
-// extractConsumerID extracts the consumer ID from an account, falling back to vendor ID
-func extractConsumerID(account *datamodel.Account, vendorID string) string {
-	if account != nil && account.Name != "" {
-		return account.Name
-	}
-	return vendorID
-}
-
 // getPoolResourceType returns the appropriate ResourceType based on whether pool is Regional HA
 func getPoolResourceType(pool *datamodel.Pool) metadata.ResourceType {
 	if pool.PoolAttributes != nil && pool.PoolAttributes.IsRegionalHA {
@@ -87,14 +80,39 @@ func getPoolResourceType(pool *datamodel.Pool) metadata.ResourceType {
 	return metadata.VolumePool
 }
 
+// getPoolAccountName returns the billing account recorded on the pool, or "" when absent. This
+// is the ledger's full pool-billing eligibility check: unlike the telemetry pool collector, the
+// ledger does not exclude HYPERSCALERDISABLED accounts, so a disabled account is still billed.
+func getPoolAccountName(pool *datamodel.Pool) string {
+	if pool.PoolAttributes != nil {
+		return pool.PoolAttributes.AccountName
+	}
+	return ""
+}
+
+// hasBillableHotTier reports whether the pool's hot tier size is billable: auto-tiering is
+// enabled and the configured hot tier size is positive.
+func hasBillableHotTier(pool *datamodel.Pool) bool {
+	return pool.AllowAutoTiering && pool.AutoTieringConfig != nil && pool.AutoTieringConfig.HotTierSizeInBytes > 0
+}
+
 // CreatePoolBillingLedger creates billing ledger entries for a pool.
 // Creates entries for both ALLOCATED_SIZE and POOL_HOT_TIER_PROVISIONED_SIZE (if AT is enabled).
+// Existing entries are deleted when the pool is not billable (see getPoolAccountName).
 // Uses VOLUME_POOL_REGIONAL_HA resource type for Regional HA pools, VOLUME_POOL otherwise.
 func (a *BillingActivity) CreatePoolBillingLedger(ctx context.Context, pool *datamodel.Pool) error {
 	if ledgerDisabled(ctx, "CreatePoolBillingLedger") {
 		return nil
 	}
 	resourceType := getPoolResourceType(pool)
+
+	accountName := getPoolAccountName(pool)
+	if accountName == "" {
+		if err := a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolAllocatedSize); err != nil {
+			return err
+		}
+		return a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolHotTierProvisionedSize)
+	}
 
 	// Create main pool billing ledger entry (ALLOCATED_SIZE)
 	if err := a.CreateBillingLedgerEntry(ctx, BillingLedgerInput{
@@ -103,31 +121,32 @@ func (a *BillingActivity) CreatePoolBillingLedger(ctx context.Context, pool *dat
 		ResourceType:   resourceType,
 		MeasuredType:   metadata.PoolAllocatedSize,
 		Size:           float64(pool.SizeInBytes),
-		ConsumerID:     extractConsumerID(pool.Account, pool.VendorID),
+		ConsumerID:     accountName,
 		DeploymentName: pool.DeploymentName,
 	}); err != nil {
 		return err
 	}
 
 	// Create hot tier billing ledger entry for AT pools
-	if err := a.CreatePoolHotTierBillingLedger(ctx, pool); err != nil {
-		return err
-	}
-
-	return nil
+	return a.upsertPoolHotTierBillingLedger(ctx, pool, resourceType, accountName)
 }
 
 // CreatePoolHotTierBillingLedger creates a billing ledger entry for a pool's hot tier size.
-// Deletes an existing hot-tier ledger when the pool is not auto-tiered, so a pool that
-// previously had auto-tiering stops being billed for hot-tier size.
+// Deletes an existing hot-tier ledger when the pool is not billable or has no billable hot
+// tier, so a pool that previously had auto-tiering stops being billed for hot-tier size.
 // Uses VOLUME_POOL_REGIONAL_HA resource type for Regional HA pools, VOLUME_POOL otherwise.
 func (a *BillingActivity) CreatePoolHotTierBillingLedger(ctx context.Context, pool *datamodel.Pool) error {
 	if ledgerDisabled(ctx, "CreatePoolHotTierBillingLedger") {
 		return nil
 	}
-	resourceType := getPoolResourceType(pool)
+	accountName := getPoolAccountName(pool)
+	return a.upsertPoolHotTierBillingLedger(ctx, pool, getPoolResourceType(pool), accountName)
+}
 
-	if !pool.AllowAutoTiering || pool.AutoTieringConfig == nil {
+// upsertPoolHotTierBillingLedger writes the hot-tier entry for a pool already resolved to
+// accountName, or deletes it when accountName is empty or the hot tier is not billable.
+func (a *BillingActivity) upsertPoolHotTierBillingLedger(ctx context.Context, pool *datamodel.Pool, resourceType metadata.ResourceType, accountName string) error {
+	if accountName == "" || !hasBillableHotTier(pool) {
 		return a.DeleteBillingLedgerByMeasuredType(ctx, pool.UUID, resourceType, metadata.PoolHotTierProvisionedSize)
 	}
 
@@ -137,7 +156,7 @@ func (a *BillingActivity) CreatePoolHotTierBillingLedger(ctx context.Context, po
 		ResourceType:   resourceType,
 		MeasuredType:   metadata.PoolHotTierProvisionedSize,
 		Size:           float64(pool.AutoTieringConfig.HotTierSizeInBytes),
-		ConsumerID:     extractConsumerID(pool.Account, pool.VendorID),
+		ConsumerID:     accountName,
 		DeploymentName: pool.DeploymentName,
 	})
 }
@@ -157,42 +176,56 @@ func isBackupEnabledVolume(volume *datamodel.Volume) bool {
 		*volume.DataProtection.BackupChainBytes > 0
 }
 
-// getVolumeVendorID safely returns the pool vendor ID for a volume.
-func getVolumeVendorID(volume *datamodel.Volume) string {
-	if volume.Pool != nil {
-		return volume.Pool.VendorID
+// getVolumeAccountName returns the owning account recorded on the volume, or "" when absent.
+func getVolumeAccountName(volume *datamodel.Volume) string {
+	if volume.VolumeAttributes != nil {
+		return volume.VolumeAttributes.AccountName
 	}
 	return ""
 }
 
-// getVolumeDeploymentName safely returns the pool deployment name for a volume.
+// getVolumeDeploymentName returns the deployment name recorded on the volume, or "" when absent.
 func getVolumeDeploymentName(volume *datamodel.Volume) string {
-	if volume.Pool != nil {
-		return volume.Pool.DeploymentName
+	if volume.VolumeAttributes != nil {
+		return volume.VolumeAttributes.DeploymentName
 	}
 	return ""
 }
 
-// shouldSkipVolumeBackupBilling reports whether the backup-enabled volume allocated-size
-// ledger should be skipped for this volume. Cross-region backups are billed separately via
-// transfer bytes, so their vaults are skipped here to avoid double-counting.
-func (a *BillingActivity) shouldSkipVolumeBackupBilling(ctx context.Context, volume *datamodel.Volume) (bool, error) {
+// volumeBackupBillingAccount returns the account the backup-enabled volume allocated size is
+// billed to, or "" when the volume is not billable. Mirrors the volume collector except for
+// account state: the volume needs a name and an owning account name; a HYPERSCALERDISABLED
+// account is still billed by the ledger (unlike the telemetry collector); a volume whose
+// attached vault cannot be resolved is not billed; and a cross-project vault is billed to the
+// vault's owning account instead of the volume owner.
+func (a *BillingActivity) volumeBackupBillingAccount(ctx context.Context, volume *datamodel.Volume) (string, error) {
+	accountName := getVolumeAccountName(volume)
+	if volume.Name == "" || accountName == "" {
+		return "", nil
+	}
 	if volume.DataProtection.BackupVaultID == "" {
-		return false, nil
+		return accountName, nil
 	}
 	backupVault, err := a.SE.GetBackupVault(ctx, volume.DataProtection.BackupVaultID)
 	if err != nil {
-		return false, err
+		if utilErrors.IsNotFoundErr(err) {
+			return "", nil
+		}
+		return "", err
 	}
-	if backupVault != nil && backupVault.BackupVaultType == CrossRegionBackupType {
-		return true, nil
+	if backupVault == nil {
+		return "", nil
 	}
-	return false, nil
+	if backupVault.ServiceType == datamodel.ServiceTypeCrossProject &&
+		backupVault.Account != nil && backupVault.Account.Name != "" {
+		return backupVault.Account.Name, nil
+	}
+	return accountName, nil
 }
 
 // CreateVolumeBillingLedger creates or updates a billing ledger entry for backup-enabled volume allocated size.
-// Deletes existing ledger entries when backup is not enabled or the volume uses a cross-region backup
-// vault (which is billed separately via transfer bytes).
+// Deletes existing ledger entries when backup is not enabled or the volume is not billable
+// (see volumeBackupBillingAccount).
 // Uses VOLUME_REGIONAL_HA resource type for Regional HA volumes, VOLUME otherwise.
 func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume *datamodel.Volume) error {
 	if ledgerDisabled(ctx, "CreateVolumeBillingLedger") {
@@ -204,11 +237,11 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 		return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 	}
 
-	skip, err := a.shouldSkipVolumeBackupBilling(ctx, volume)
+	billingAccount, err := a.volumeBackupBillingAccount(ctx, volume)
 	if err != nil {
 		return err
 	}
-	if skip {
+	if billingAccount == "" {
 		return a.DeleteBillingLedgerByMeasuredType(ctx, volume.UUID, resourceType, metadata.BackupEnabledVolumeAllocatedSize)
 	}
 
@@ -218,17 +251,53 @@ func (a *BillingActivity) CreateVolumeBillingLedger(ctx context.Context, volume 
 		ResourceType:   resourceType,
 		MeasuredType:   metadata.BackupEnabledVolumeAllocatedSize,
 		Size:           float64(volume.SizeInBytes),
-		ConsumerID:     extractConsumerID(volume.Account, getVolumeVendorID(volume)),
+		ConsumerID:     billingAccount,
 		DeploymentName: getVolumeDeploymentName(volume),
 	})
 }
 
+// crossRegionTransferVault returns the backup's vault when the backup's transfer bytes are
+// billable, or nil when they are not. Mirrors the backup collector except for account state:
+// the vault must be a cross-region vault whose backup region is set and differs from its
+// source region, and the backup must have transferred bytes. A HYPERSCALERDISABLED owning
+// account is still billed by the ledger (unlike the telemetry collector).
+func (a *BillingActivity) crossRegionTransferVault(ctx context.Context, backup *datamodel.Backup) (*datamodel.BackupVault, error) {
+	logger := util.GetLogger(ctx)
+
+	// A backup without an associated vault cannot be cross-region; skip the lookup entirely.
+	// GetBackupVaultById would otherwise query "id = 0" and return a not-found error.
+	if backup.BackupVaultID == 0 {
+		logger.Debugf("Ledger: Backup %s for volume %s has no backup vault; transfer bytes not billable", backup.UUID, backup.VolumeUUID)
+		return nil, nil
+	}
+
+	backupVault, err := a.SE.GetBackupVaultById(ctx, backup.BackupVaultID)
+	if err != nil {
+		return nil, err
+	}
+	if backupVault == nil || backupVault.BackupVaultType != CrossRegionBackupType {
+		logger.Debugf("Ledger: Backup %s for volume %s is not cross-region; transfer bytes not billable", backup.UUID, backup.VolumeUUID)
+		return nil, nil
+	}
+	if backupVault.BackupRegionName == nil || *backupVault.BackupRegionName == "" ||
+		(backupVault.SourceRegionName != nil && *backupVault.SourceRegionName == *backupVault.BackupRegionName) {
+		logger.Warnf("Ledger: Backup %s for volume %s is in vault %s without a distinct backup region; transfer bytes not billable", backup.UUID, backup.VolumeUUID, backupVault.Name)
+		return nil, nil
+	}
+	if backup.Attributes.GetTotalTransferBytes() <= 0 {
+		return nil, nil
+	}
+
+	return backupVault, nil
+}
+
 // CreateCrossRegionBackupTransferBillingLedger creates a billing ledger entry capturing the
 // cross-region transfer bytes of a newly created backup. It is invoked whenever a backup is
-// created, with that backup passed directly (it is the latest backup by definition). It is a
-// no-op when the backup is nil, or when its vault is not a cross-region vault (transfer-bytes
-// billing only applies to cross-region backups). Uses VOLUME_UUID as the resource so the entry
-// is keyed per volume. Deployment name is the backup vault name.
+// created, with that backup passed directly (it is the latest backup by definition). Because
+// the collector bills transfer bytes from the volume's latest backup, the volume's entry is
+// deleted when that backup's transfer bytes are not billable (see crossRegionTransferVault).
+// It is a no-op when the backup or its attributes are nil. Uses VOLUME_UUID as the resource
+// so the entry is keyed per volume. Deployment name is the backup vault name.
 func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx context.Context, backup *datamodel.Backup) error {
 	if ledgerDisabled(ctx, "CreateCrossRegionBackupTransferBillingLedger") {
 		return nil
@@ -239,20 +308,15 @@ func (a *BillingActivity) CreateCrossRegionBackupTransferBillingLedger(ctx conte
 		return nil
 	}
 
-	// A backup without an associated vault cannot be cross-region; skip the lookup entirely.
-	// GetBackupVaultById would otherwise query "id = 0" and return a not-found error.
-	if backup.BackupVaultID == 0 {
-		logger.Debugf("Ledger: Backup %s for volume %s has no backup vault; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
-		return nil
-	}
-
-	backupVault, err := a.SE.GetBackupVaultById(ctx, backup.BackupVaultID)
+	backupVault, err := a.crossRegionTransferVault(ctx, backup)
 	if err != nil {
 		return err
 	}
-	if backupVault == nil || backupVault.BackupVaultType != CrossRegionBackupType {
-		logger.Debugf("Ledger: Backup %s for volume %s is not cross-region; skipping transfer billing ledger", backup.UUID, backup.VolumeUUID)
-		return nil
+	if backupVault == nil {
+		if backup.VolumeUUID == "" {
+			return nil
+		}
+		return a.DeleteBillingLedgerByMeasuredType(ctx, backup.VolumeUUID, metadata.Backup, metadata.CbsCrossRegionVolumeBackupTransferBytes)
 	}
 
 	ledger := &datamodel.BillingLedger{

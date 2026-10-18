@@ -1799,7 +1799,7 @@ func Test_ErroredPool_Success(t *testing.T) {
 	pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: 1}}
 
 	mockStorage.On("ErroredResource", mock.Anything, pool, mock.Anything).Return(pool, nil)
-	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil)
+	mockStorage.On("CreateBillingLedger", mock.Anything, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	mockStorage.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	encodedValue, err := env.ExecuteActivity(activity.ErroredPool, pool, "")
@@ -4905,7 +4905,7 @@ func TestMarksPoolAndResourcesAsFailedWhenErroredResourceSucceeds(t *testing.T) 
 	mockStorage.On("ErroredResource", ctx, pool, "error during pool deletion").Return(pool, nil)
 	mockStorage.On("GetSvmsByPoolID", ctx, pool.ID).Return([]*datamodel.Svm{}, nil)
 	mockStorage.On("GetNodesByPoolID", ctx, pool.ID).Return([]*datamodel.Node{}, nil)
-	mockStorage.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil)
+	mockStorage.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	mockStorage.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	err := activity.FailedPool(ctx, pool, "error during pool deletion")
@@ -6075,7 +6075,7 @@ func TestPoolActivity_FailedPool_Success(t *testing.T) {
 	mockStorage.On("ErroredResource", ctx, mock.MatchedBy(func(p *datamodel.Pool) bool {
 		return p.State == datamodel.LifeCycleStateError
 	}), errMsg).Return(expectedPool, nil)
-	mockStorage.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil)
+	mockStorage.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 	mockStorage.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	originalFailedSVMs := activities.FailedSVMs
@@ -6907,7 +6907,7 @@ func TestFailedPoolActivity(t *testing.T) {
 
 		pool := &datamodel.Pool{BaseModel: datamodel.BaseModel{ID: int64(1)}}
 		mockSE.On("ErroredResource", ctx, pool, mock.Anything).Return(pool, nil)
-		mockSE.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil)
+		mockSE.On("CreateBillingLedger", ctx, mock.Anything).Return(&datamodel.BillingLedger{}, nil).Maybe()
 		mockSE.On("DeleteBillingLedgersByResourceUUIDAndMeasuredType", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		err := activity.FailedPoolActivity(ctx, pool, "error message")
 
