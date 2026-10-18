@@ -19688,6 +19688,66 @@ func (_c *MockDataStore_ListBackupVaults_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// ListBillingLedgersWithPagination provides a mock function with given fields: ctx, conditions, pagination
+func (_m *MockDataStore) ListBillingLedgersWithPagination(ctx context.Context, conditions [][]interface{}, pagination *utils.Pagination) ([]*datamodel.BillingLedger, error) {
+	ret := _m.Called(ctx, conditions, pagination)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListBillingLedgersWithPagination")
+	}
+
+	var r0 []*datamodel.BillingLedger
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Pagination) ([]*datamodel.BillingLedger, error)); ok {
+		return rf(ctx, conditions, pagination)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, [][]interface{}, *utils.Pagination) []*datamodel.BillingLedger); ok {
+		r0 = rf(ctx, conditions, pagination)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*datamodel.BillingLedger)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, [][]interface{}, *utils.Pagination) error); ok {
+		r1 = rf(ctx, conditions, pagination)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockDataStore_ListBillingLedgersWithPagination_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListBillingLedgersWithPagination'
+type MockDataStore_ListBillingLedgersWithPagination_Call struct {
+	*mock.Call
+}
+
+// ListBillingLedgersWithPagination is a helper method to define mock.On call
+//   - ctx context.Context
+//   - conditions [][]interface{}
+//   - pagination *utils.Pagination
+func (_e *MockDataStore_Expecter) ListBillingLedgersWithPagination(ctx interface{}, conditions interface{}, pagination interface{}) *MockDataStore_ListBillingLedgersWithPagination_Call {
+	return &MockDataStore_ListBillingLedgersWithPagination_Call{Call: _e.mock.On("ListBillingLedgersWithPagination", ctx, conditions, pagination)}
+}
+
+func (_c *MockDataStore_ListBillingLedgersWithPagination_Call) Run(run func(ctx context.Context, conditions [][]interface{}, pagination *utils.Pagination)) *MockDataStore_ListBillingLedgersWithPagination_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([][]interface{}), args[2].(*utils.Pagination))
+	})
+	return _c
+}
+
+func (_c *MockDataStore_ListBillingLedgersWithPagination_Call) Return(_a0 []*datamodel.BillingLedger, _a1 error) *MockDataStore_ListBillingLedgersWithPagination_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockDataStore_ListBillingLedgersWithPagination_Call) RunAndReturn(run func(context.Context, [][]interface{}, *utils.Pagination) ([]*datamodel.BillingLedger, error)) *MockDataStore_ListBillingLedgersWithPagination_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListClusterPeeringRowsByAccountID provides a mock function with given fields: ctx, accountID
 func (_m *MockDataStore) ListClusterPeeringRowsByAccountID(ctx context.Context, accountID int64) ([]*datamodel.ClusterPeerings, error) {
 	ret := _m.Called(ctx, accountID)

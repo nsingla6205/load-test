@@ -86,6 +86,7 @@ type TelemetryConfig struct {
 	EnableTenantQuotaProject                     bool // When true, ListTimeSeries bills Cloud Monitoring quota to the tenant project
 	EnableBackupVaultMetrics                     bool
 	EnableBackupHistoryFormatter                 bool
+	EnableBillingLedgerHistoryFormatter          bool
 	// When true, the backup_used metric is emitted for cross-project (GCBDR) vault backups.
 	EnableCrossProjectBackupUsedMetric bool
 	EnableATVolumeBasedPoolBilling     bool
@@ -141,6 +142,7 @@ func LoadConfig() *TelemetryConfig {
 	enableBackupVaultMetrics := env.GetBool("ENABLE_BACKUP_VAULT_METRICS", false)
 	enableCrossRegionBackupBillingMetrics := env.GetBool("ENABLE_CROSS_REGION_BACKUP_BILLING_METRICS", false)
 	enableBackupHistoryFormatter := env.GetBool("ENABLE_BACKUP_HISTORY_FORMATTER", false)
+	enableBillingLedgerHistoryFormatter := env.GetBool("ENABLE_BILLING_LEDGER_HISTORY_FORMATTER", true)
 	enableCrossProjectBackupUsedMetric := env.GetBool("ENABLE_CROSS_PROJECT_BACKUP_USED_METRIC", false)
 	enableSFRCrossRegionRestoreBilling := env.GetBool("ENABLE_SFR_CROSS_REGION_RESTORE_BILLING", false)
 	pushBatchSize := env.GetInt64("PUSH_BATCH_SIZE", 1000)
@@ -203,6 +205,7 @@ func LoadConfig() *TelemetryConfig {
 		SFRMetricsEnabled:                            sfrMetricsEnabled,
 		EnableBackupVaultMetrics:                     enableBackupVaultMetrics,
 		EnableBackupHistoryFormatter:                 enableBackupHistoryFormatter,
+		EnableBillingLedgerHistoryFormatter:          enableBillingLedgerHistoryFormatter,
 		EnableCrossProjectBackupUsedMetric:           enableCrossProjectBackupUsedMetric,
 		NumWorkersPerformance:                        numWorkersPerformance,
 		NumWorkersUsage:                              numWorkersUsage,

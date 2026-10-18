@@ -163,6 +163,24 @@ func TestEnableBackupHistoryFormatterWithEnvironmentVariable(t *testing.T) {
 	}
 }
 
+func TestEnableBillingLedgerHistoryFormatterDefaultValue(t *testing.T) {
+	config := LoadConfig()
+
+	if config.EnableBillingLedgerHistoryFormatter {
+		t.Fatalf("Expected EnableBillingLedgerHistoryFormatter to default to false, got %v", config.EnableBillingLedgerHistoryFormatter)
+	}
+}
+
+func TestEnableBillingLedgerHistoryFormatterWithEnvironmentVariable(t *testing.T) {
+	t.Setenv("ENABLE_BILLING_LEDGER_HISTORY_FORMATTER", "true")
+
+	config := LoadConfig()
+
+	if !config.EnableBillingLedgerHistoryFormatter {
+		t.Fatalf("Expected EnableBillingLedgerHistoryFormatter to be true, got %v", config.EnableBillingLedgerHistoryFormatter)
+	}
+}
+
 func TestEnableGcbdrBmfBillingDefaultValue(t *testing.T) {
 	config := LoadConfig()
 

@@ -651,5 +651,9 @@ type (
 		CreateBillingLedger(ctx context.Context, ledger *datamodel.BillingLedger) (*datamodel.BillingLedger, error)
 		GetBillingLedgersByResourceUUID(ctx context.Context, resourceUUID string) ([]*datamodel.BillingLedger, error)
 		DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error
+		// ListBillingLedgersWithPagination retrieves billing ledger entries (including soft-deleted
+		// rows) with pagination and conditions, so history-based billing formatters can read ledger
+		// create/delete intervals the same way they read backup chain history rows.
+		ListBillingLedgersWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.BillingLedger, error)
 	}
 )

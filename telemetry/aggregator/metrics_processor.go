@@ -209,6 +209,8 @@ func (p *BillingProvider) ProcessBillingMetrics(ctx context.Context, aggregation
 				// 3. Only the earliest record from next period (closest to aggregation end)
 				if p.config.EnableBackupHistoryFormatter && key.ResourceType == metadata.Backup && key.MeasuredType == metadata.BackupLogicalSize {
 					metrics, err = p.fetchBackupHistoryMetrics(ctx, aggregationStartTime, aggregationEndTime, jobDef.TimeSeriesFormatter.GetBackfillLimit(), resourceCollection)
+				} else if p.config.EnableBillingLedgerHistoryFormatter && isPoolResourceType(key.ResourceType) && (key.MeasuredType == metadata.PoolAllocatedSize || key.MeasuredType == metadata.PoolHotTierProvisionedSize) {
+					metrics, err = p.fetchBillingLedgerHistoryMetrics(ctx, aggregationStartTime, aggregationEndTime, jobDef.TimeSeriesFormatter.GetBackfillLimit(), key.ResourceType, key.MeasuredType)
 				} else {
 					metrics, err = p.fetchMetricsForCounterAndIntegralAggregation(ctx, aggregationStartTime, aggregationEndTime, key.ResourceType.String(), key.MeasuredType.String(), jobDef.TimeSeriesFormatter.GetBackfillLimit())
 				}
@@ -371,6 +373,21 @@ func (p *BillingProvider) applyDataSourceAndFormatterOverrides(logger log.Logger
 			}
 			if logger != nil {
 				logger.Debugf("Enabled backup history formatter for %s/%s", key.ResourceType, key.MeasuredType)
+			}
+			common.DefaultAggregationJobDefinitions[key] = jobDef
+		}
+
+		// Billing cutover to ledger: pool allocated size. Mirrors the backup history formatter
+		// cutover above, but reads billing_ledgers rows (written by CreatePoolBillingLedger /
+		// DeletePoolBillingLedgers) instead of backup_chain_histories, since pools do not have a
+		// dedicated history table. Applies to both VOLUME_POOL and VOLUME_POOL_REGIONAL_HA.
+		if isPoolResourceType(key.ResourceType) && (key.MeasuredType == metadata.PoolAllocatedSize || key.MeasuredType == metadata.PoolHotTierProvisionedSize) && p.config.EnableBillingLedgerHistoryFormatter {
+			backfillLimit := jobDef.TimeSeriesFormatter.GetBackfillLimit()
+			jobDef.TimeSeriesFormatter = &common.HistoricalMetricsFormatter{
+				BackfillLimit: backfillLimit,
+			}
+			if logger != nil {
+				logger.Debugf("Enabled billing ledger history formatter for %s/%s", key.ResourceType, key.MeasuredType)
 			}
 			common.DefaultAggregationJobDefinitions[key] = jobDef
 		}
@@ -1240,6 +1257,92 @@ func mergeEndpointHistories(rows []*datamodel.BackupChainHistory) []combinedInte
 		result = append(result, combinedInterval{start: b, end: end, size: size, isExpertMode: isExpertMode})
 	}
 	return result
+}
+
+// fetchBillingLedgerHistoryMetrics builds hydrated metrics from billing_ledgers for one
+// resource type and measured type. It mirrors fetchBackupHistoryMetrics, except the source of
+// truth is billing_ledgers instead of backup_chain_histories. Each ledger row's
+// created_at/deleted_at window is the interval during which that quantity was active, so rows
+// can be replayed directly by common.HistoricalMetricsFormatter. One ledger row maps to exactly
+// one hydrated metric; there is no multi-endpoint merge.
+//
+// The emitted ResourceName is the ledger's resource_name, not resource_uuid. PoolData is keyed
+// by pool name, so emitting the UUID would miss every downstream PoolData lookup in
+// groupMetricsByResource, getResourceDataForAggregationUsage, shouldSkipAutoTieringMetric, and
+// applyFreeTrialSplit.
+func (p *BillingProvider) fetchBillingLedgerHistoryMetrics(ctx context.Context, aggregationStartTime, aggregationEndTime time.Time, backfillLimit time.Duration, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) ([]datamodel2.HydratedMetrics, error) {
+	startWindow := aggregationStartTime.Add(-backfillLimit)
+	endWindow := aggregationEndTime.Add(backfillLimit)
+	logger := util.GetLogger(ctx)
+
+	var ledgers []*datamodel.BillingLedger
+	offset := 0
+	limit := p.config.PoolVolumeLabelPageSize
+	conditions := [][]interface{}{
+		{"resource_uuid IS NOT NULL"},
+		{"resource_type = ?", resourceType},
+		{"measured_type = ?", measuredType},
+		{"created_at <= ?", endWindow},
+		{"(deleted_at IS NULL OR deleted_at >= ?)", startWindow},
+	}
+
+	for {
+		pagination := &dbutils.Pagination{
+			Offset: offset,
+			Limit:  limit,
+		}
+		page, err := p.vcpDataStore.ListBillingLedgersWithPagination(ctx, conditions, pagination)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+		ledgers = append(ledgers, page...)
+		offset += len(page)
+		if len(page) < limit {
+			break
+		}
+	}
+
+	if len(ledgers) == 0 {
+		return []datamodel2.HydratedMetrics{}, nil
+	}
+
+	// Metric emission to Google is suppressed for HYPERSCALERDISABLED accounts, same as every
+	// other billing collector and history formatter. The ledger itself still records those
+	// accounts (see migration 0052 and the billing activities).
+	accountStateMap := collector.BuildAccountStateMap(ctx, p.vcpDataStore)
+
+	metrics := make([]datamodel2.HydratedMetrics, 0, len(ledgers))
+	for _, l := range ledgers {
+		if l.ResourceUUID == "" {
+			continue
+		}
+		if collector.IsAccountDisabled(accountStateMap, l.ConsumerID) {
+			logger.Warn("Skipping billing ledger entry: billing account is disabled",
+				"resourceUUID", l.ResourceUUID,
+				"resourceType", resourceType,
+				"measuredType", measuredType,
+				"consumerID", l.ConsumerID,
+				"accountState", datamodel.AccountStateHyperscalerDisabled)
+			continue
+		}
+
+		metrics = append(metrics, datamodel2.HydratedMetrics{
+			MetricTimestamp: l.CreatedAt,
+			MeasuredType:    metadata.MeasuredTypeValue(measuredType),
+			ConsumerID:      l.ConsumerID,
+			ResourceType:    metadata.ResourceTypeValue(resourceType),
+			ResourceName:    l.ResourceName,
+			Location:        p.config.RegionName,
+			Quantity:        l.Quantity,
+			DeploymentName:  l.DeploymentName,
+			DeletedAt:       deletedAtPtr(l.DeletedAt),
+		})
+	}
+
+	return metrics, nil
 }
 
 func deletedAtPtr(deletedAt *gorm.DeletedAt) *time.Time {

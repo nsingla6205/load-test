@@ -557,6 +557,7 @@ func getDefaultEnvVars() map[string]string {
 		// Always include the flag so callers can reliably read it even if --env-vars omits it.
 		"CLOUD_SQL_IAM_AUTH_ENABLED":               getEnvOrDefault("CLOUD_SQL_IAM_AUTH_ENABLED", "false"),
 		"ENABLE_BACKUP_HISTORY_FORMATTER":          getEnvOrDefault("ENABLE_BACKUP_HISTORY_FORMATTER", "false"),
+		"ENABLE_BILLING_LEDGER_HISTORY_FORMATTER":  getEnvOrDefault("ENABLE_BILLING_LEDGER_HISTORY_FORMATTER", "false"),
 		"INJECTION_WINDOW_MINUTES":                 getEnvOrDefault("INJECTION_WINDOW_MINUTES", "10"),
 		"ENABLE_COUNTER_FORMATTER":                 getEnvOrDefault("ENABLE_COUNTER_FORMATTER", "false"),
 		"ENABLE_EXPERT_MODE_BACKUP_BILLING":        getEnvOrDefault("ENABLE_EXPERT_MODE_BACKUP_BILLING", "false"),

@@ -3,13 +3,16 @@ package database
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	gormwrapper "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils/gorm"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
+	"gorm.io/gorm"
 )
 
 // newBillingLedgerTestStore returns a repository backed by a clean in-memory DB.
@@ -282,4 +285,71 @@ func TestDeleteBillingLedgersByResourceUUIDAndMeasuredType(t *testing.T) {
 		err := store.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, "pool-uuid-1", metadata.VolumePool, metadata.PoolAllocatedSize)
 		assert.Error(tt, err)
 	})
+}
+
+// TestListBillingLedgersWithPagination_IncludesDeletedRows verifies that a history-based
+// formatter can replay a pool's full active/replaced billing window from the ledger: an active
+// row (still accruing) and a previously replaced/deleted row within the query window must both be
+// returned, mirroring ListBackupChainHistoriesWithPagination's soft-delete inclusion semantics.
+func TestListBillingLedgersWithPagination_IncludesDeletedRows(t *testing.T) {
+	store := newBillingLedgerTestStore(t)
+	ctx := context.Background()
+
+	start := time.Date(2026, 2, 18, 10, 0, 0, 0, time.UTC)
+	end := start.Add(1 * time.Hour)
+	deletedAt := start.Add(10 * time.Minute)
+
+	activeLedger := &datamodel.BillingLedger{
+		BaseModel: datamodel.BaseModel{
+			UUID:      "ledger-active",
+			CreatedAt: start.Add(-10 * time.Minute),
+		},
+		ResourceUUID:   "pool-uuid-1",
+		ConsumerID:     "consumer-id",
+		DeploymentName: "deployment-name",
+		ResourceType:   metadata.VolumePool,
+		MeasuredType:   metadata.PoolAllocatedSize,
+		Quantity:       100,
+	}
+	deletedLedger := &datamodel.BillingLedger{
+		BaseModel: datamodel.BaseModel{
+			UUID:      "ledger-deleted",
+			CreatedAt: start.Add(-20 * time.Minute),
+			DeletedAt: &gorm.DeletedAt{Time: deletedAt, Valid: true},
+		},
+		ResourceUUID:   "pool-uuid-1",
+		ConsumerID:     "consumer-id",
+		DeploymentName: "deployment-name",
+		ResourceType:   metadata.VolumePool,
+		MeasuredType:   metadata.PoolAllocatedSize,
+		Quantity:       50,
+	}
+
+	require.NoError(t, store.db.Create(activeLedger).Error())
+	require.NoError(t, store.db.Create(deletedLedger).Error())
+
+	conditions := [][]interface{}{
+		{"resource_uuid IS NOT NULL"},
+		{"resource_type = ?", metadata.VolumePool},
+		{"measured_type = ?", metadata.PoolAllocatedSize},
+		{"created_at <= ?", end},
+		{"(deleted_at IS NULL OR deleted_at >= ?)", start},
+	}
+	pagination := &dbutils.Pagination{Offset: 0, Limit: 10}
+
+	results, err := store.ListBillingLedgersWithPagination(ctx, conditions, pagination)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	uuids := map[string]bool{results[0].UUID: true, results[1].UUID: true}
+	assert.True(t, uuids["ledger-active"])
+	assert.True(t, uuids["ledger-deleted"])
+}
+
+func TestListBillingLedgersWithPagination_ReturnsErrorWhenDBFails(t *testing.T) {
+	store := newBillingLedgerTestStore(t)
+	closeTestStoreDB(t, store)
+
+	_, err := store.ListBillingLedgersWithPagination(context.Background(), nil, &dbutils.Pagination{Offset: 0, Limit: 10})
+	assert.Error(t, err)
 }

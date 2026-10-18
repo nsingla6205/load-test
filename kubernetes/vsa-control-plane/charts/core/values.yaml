@@ -374,6 +374,7 @@ telemetryDeployer:
   jobWakeNotifyEnabled: true
   jobPollFallbackInterval: "30s"
   enableBackupHistoryFormatter: false
+  enableBillingLedgerHistoryFormatter: false
   injectionWindowMinutes: 10
   enableCounterFormatter: false
   regionNumberMap:

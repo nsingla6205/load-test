@@ -355,6 +355,79 @@ func TestApplyDataSourceAndFormatterOverrides_UsesHistoricalFormatter(t *testing
 	assert.Equal(t, 5*time.Minute, formatter.GetBackfillLimit())
 }
 
+func TestApplyDataSourceAndFormatterOverrides_UsesHistoricalFormatterForPoolAllocatedSize(t *testing.T) {
+	original := make(map[metadata.CombinedKeyResourceTypeMeasuredType]common.AggregationJobDefinition, len(common.DefaultAggregationJobDefinitions))
+	for key, value := range common.DefaultAggregationJobDefinitions {
+		original[key] = value
+	}
+	defer func() {
+		common.DefaultAggregationJobDefinitions = original
+	}()
+
+	poolKeys := []metadata.CombinedKeyResourceTypeMeasuredType{
+		{ResourceType: metadata.VolumePool, MeasuredType: metadata.PoolAllocatedSize},
+		{ResourceType: metadata.VolumePoolRegionalHA, MeasuredType: metadata.PoolAllocatedSize},
+	}
+	for _, key := range poolKeys {
+		jobDef := common.DefaultAggregationJobDefinitions[key]
+		jobDef.TimeSeriesFormatter = &common.SampledMetricsFormatter{
+			Mode:          common.Interval,
+			BackfillLimit: 5 * time.Minute,
+		}
+		common.DefaultAggregationJobDefinitions[key] = jobDef
+	}
+
+	provider := &BillingProvider{
+		config: &common.TelemetryConfig{
+			EnableBillingLedgerHistoryFormatter: true,
+		},
+	}
+
+	logger := util.GetLogger(context.Background())
+	provider.applyDataSourceAndFormatterOverrides(logger)
+
+	for _, key := range poolKeys {
+		updated := common.DefaultAggregationJobDefinitions[key]
+		formatter, ok := updated.TimeSeriesFormatter.(*common.HistoricalMetricsFormatter)
+		require.True(t, ok, "expected HistoricalMetricsFormatter for %s/%s", key.ResourceType, key.MeasuredType)
+		assert.Equal(t, 5*time.Minute, formatter.GetBackfillLimit())
+	}
+}
+
+func TestApplyDataSourceAndFormatterOverrides_SkipsPoolAllocatedSizeHistoricalFormatterWhenDisabled(t *testing.T) {
+	original := make(map[metadata.CombinedKeyResourceTypeMeasuredType]common.AggregationJobDefinition, len(common.DefaultAggregationJobDefinitions))
+	for key, value := range common.DefaultAggregationJobDefinitions {
+		original[key] = value
+	}
+	defer func() {
+		common.DefaultAggregationJobDefinitions = original
+	}()
+
+	key := metadata.CombinedKeyResourceTypeMeasuredType{
+		ResourceType: metadata.VolumePool,
+		MeasuredType: metadata.PoolAllocatedSize,
+	}
+	jobDef := common.DefaultAggregationJobDefinitions[key]
+	jobDef.TimeSeriesFormatter = &common.SampledMetricsFormatter{
+		Mode:          common.Interval,
+		BackfillLimit: 5 * time.Minute,
+	}
+	common.DefaultAggregationJobDefinitions[key] = jobDef
+
+	provider := &BillingProvider{
+		config: &common.TelemetryConfig{
+			EnableBillingLedgerHistoryFormatter: false,
+		},
+	}
+
+	logger := util.GetLogger(context.Background())
+	provider.applyDataSourceAndFormatterOverrides(logger)
+
+	updated := common.DefaultAggregationJobDefinitions[key]
+	_, ok := updated.TimeSeriesFormatter.(*common.SampledMetricsFormatter)
+	assert.True(t, ok, "expected formatter to remain unchanged when flag is disabled")
+}
+
 func TestApplyDataSourceAndFormatterOverrides_UsesCounterFormatterForReplicationMetric(t *testing.T) {
 	original := make(map[metadata.CombinedKeyResourceTypeMeasuredType]common.AggregationJobDefinition, len(common.DefaultAggregationJobDefinitions))
 	for key, value := range common.DefaultAggregationJobDefinitions {
@@ -588,6 +661,158 @@ func TestFetchBackupHistoryMetrics_SkipsDisabledBillingAccount(t *testing.T) {
 					assert.Equal(t, float64(20), metric.Quantity)
 					assert.Equal(t, "enabled-consumer", metric.ConsumerID)
 				}
+			}
+			assert.ElementsMatch(t, tt.wantResources, got)
+			vcpDB.AssertExpectations(t)
+		})
+	}
+}
+
+func TestFetchBillingLedgerHistoryMetrics_PopulatesFields(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 2, 18, 10, 0, 0, 0, time.UTC)
+	deletedAt := now.Add(30 * time.Minute)
+
+	ledgers := []*datamodel.BillingLedger{
+		{
+			BaseModel: datamodel.BaseModel{
+				CreatedAt: now,
+			},
+			ResourceUUID:   "pool-uuid-1",
+			ResourceName:   "pool-1",
+			ConsumerID:     "consumer-1",
+			DeploymentName: "deployment-1",
+			ResourceType:   metadata.VolumePool,
+			MeasuredType:   metadata.PoolAllocatedSize,
+			Quantity:       123,
+		},
+		{
+			BaseModel: datamodel.BaseModel{
+				CreatedAt: now.Add(15 * time.Minute),
+				DeletedAt: &gorm.DeletedAt{Time: deletedAt, Valid: true},
+			},
+			ResourceUUID:   "pool-uuid-2",
+			ResourceName:   "pool-2",
+			ConsumerID:     "consumer-2",
+			DeploymentName: "deployment-2",
+			ResourceType:   metadata.VolumePool,
+			MeasuredType:   metadata.PoolAllocatedSize,
+			Quantity:       456,
+		},
+	}
+
+	vcpDB := &database2.MockStorage{}
+	vcpDB.On("ListBillingLedgersWithPagination", mock.Anything, mock.Anything, mock.Anything).Return(ledgers, nil).Once()
+	vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).Return([]*database2.AccountTelemetryData{}, nil)
+
+	provider := &BillingProvider{
+		vcpDataStore: vcpDB,
+		config: &common.TelemetryConfig{
+			PoolVolumeLabelPageSize: 100,
+			RegionName:              "us-central1",
+		},
+	}
+
+	metrics, err := provider.fetchBillingLedgerHistoryMetrics(ctx, now.Add(-time.Hour), now.Add(time.Hour), 0, metadata.VolumePool, metadata.PoolAllocatedSize)
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+
+	// ResourceName must be the ledger's resource_name (pool name), not resource_uuid: that is
+	// how resourceCollection.PoolData is keyed (see ResourceKey construction in fetchResourceData),
+	// so using the UUID here would break every downstream PoolData lookup.
+	byResource := map[string]datamodel2.HydratedMetrics{}
+	for _, metric := range metrics {
+		byResource[metric.ResourceName] = metric
+	}
+
+	first := byResource["pool-1"]
+	assert.Equal(t, now, first.MetricTimestamp)
+	assert.Equal(t, string(metadata.VolumePool), first.ResourceType)
+	assert.Equal(t, string(metadata.PoolAllocatedSize), first.MeasuredType)
+	assert.Equal(t, "consumer-1", first.ConsumerID)
+	assert.Equal(t, "deployment-1", first.DeploymentName)
+	assert.Equal(t, float64(123), first.Quantity)
+	assert.Nil(t, first.DeletedAt)
+
+	second := byResource["pool-2"]
+	require.NotNil(t, second.DeletedAt)
+	assert.Equal(t, deletedAt, *second.DeletedAt)
+}
+
+func TestFetchBillingLedgerHistoryMetrics_SkipsDisabledBillingAccount(t *testing.T) {
+	now := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+
+	ledger := func(resourceUUID, consumerID string, quantity float64) *datamodel.BillingLedger {
+		return &datamodel.BillingLedger{
+			BaseModel:      datamodel.BaseModel{CreatedAt: now},
+			ResourceUUID:   resourceUUID,
+			ResourceName:   resourceUUID,
+			ConsumerID:     consumerID,
+			DeploymentName: "deployment-1",
+			ResourceType:   metadata.VolumePool,
+			MeasuredType:   metadata.PoolAllocatedSize,
+			Quantity:       quantity,
+		}
+	}
+
+	tests := []struct {
+		name          string
+		accounts      []*database2.AccountTelemetryData
+		accountErr    error
+		ledgers       []*datamodel.BillingLedger
+		wantResources []string
+	}{
+		{
+			name: "disabled consumer is omitted and enabled consumer is emitted",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "disabled-consumer", State: datamodel.AccountStateHyperscalerDisabled},
+				{Name: "enabled-consumer", State: "READY"},
+			},
+			ledgers: []*datamodel.BillingLedger{
+				ledger("disabled-pool", "disabled-consumer", 10),
+				ledger("enabled-pool", "enabled-consumer", 20),
+			},
+			wantResources: []string{"enabled-pool"},
+		},
+		{
+			name: "unknown account still emits",
+			accounts: []*database2.AccountTelemetryData{
+				{Name: "someone-else", State: datamodel.AccountStateHyperscalerDisabled},
+			},
+			ledgers:       []*datamodel.BillingLedger{ledger("unknown-pool", "not-in-map", 30)},
+			wantResources: []string{"unknown-pool"},
+		},
+		{
+			name:          "account fetch error still emits",
+			accountErr:    assert.AnError,
+			ledgers:       []*datamodel.BillingLedger{ledger("fetch-error-pool", "disabled-consumer", 50)},
+			wantResources: []string{"fetch-error-pool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			vcpDB := database2.NewMockStorage(t)
+			vcpDB.On("ListBillingLedgersWithPagination", mock.Anything, mock.Anything, mock.Anything).
+				Return(tt.ledgers, nil).Once()
+			vcpDB.On("ListAccountsForTelemetry", mock.Anything, mock.Anything).
+				Return(tt.accounts, tt.accountErr).Once()
+
+			provider := &BillingProvider{
+				vcpDataStore: vcpDB,
+				config: &common.TelemetryConfig{
+					PoolVolumeLabelPageSize: 100,
+					RegionName:              "us-central1",
+				},
+			}
+
+			metrics, err := provider.fetchBillingLedgerHistoryMetrics(ctx, now.Add(-time.Hour), now.Add(time.Hour), 0, metadata.VolumePool, metadata.PoolAllocatedSize)
+			require.NoError(t, err)
+
+			got := make([]string, 0, len(metrics))
+			for _, metric := range metrics {
+				got = append(got, metric.ResourceName)
 			}
 			assert.ElementsMatch(t, tt.wantResources, got)
 			vcpDB.AssertExpectations(t)

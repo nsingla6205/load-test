@@ -287,6 +287,8 @@ spec:
               value: {{ .Values.telemetryDeployer.jobPollFallbackInterval | default "30s" | quote }}
             - name: ENABLE_BACKUP_HISTORY_FORMATTER
               value: {{ .Values.telemetryDeployer.enableBackupHistoryFormatter | default "false" | quote }}
+            - name: ENABLE_BILLING_LEDGER_HISTORY_FORMATTER
+              value: {{ .Values.telemetryDeployer.enableBillingLedgerHistoryFormatter | default "false" | quote }}
             - name: INJECTION_WINDOW_MINUTES
               value: {{ .Values.telemetryDeployer.injectionWindowMinutes | default "10" | quote }}
             - name: ENABLE_COUNTER_FORMATTER

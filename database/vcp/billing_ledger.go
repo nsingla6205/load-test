@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/database/datamodel"
+	dbutils "github.com/vcp-vsa-control-Plane/vsa-control-plane/database/utils"
 	vsaerrors "github.com/vcp-vsa-control-Plane/vsa-control-plane/lib/errors"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/telemetry/metadata"
 	"github.com/vcp-vsa-control-Plane/vsa-control-plane/utils"
@@ -119,4 +120,23 @@ func (d *DataStoreRepository) DeleteBillingLedgersByResourceUUIDAndMeasuredType(
 	logger.Infof("Ledger: Deleted %d billing ledger entries for resource %s (resource_type: %s, measured_type: %s)",
 		deleteResult.RowsAffected, resourceUUID, resourceType, measuredType)
 	return nil
+}
+
+// ListBillingLedgersWithPagination retrieves billing ledger entries with pagination and conditions.
+// Uses Unscoped so that soft-deleted rows are included when deleted_at filters are supplied. This
+// mirrors ListBackupChainHistoriesWithPagination: each billing ledger row's created_at/deleted_at
+// window represents the interval during which a quantity was active for a resource, which lets a
+// history-based formatter (see telemetry/common.HistoricalMetricsFormatter) replay accurate billing
+// windows directly from the ledger instead of from periodically sampled telemetry metrics.
+func (d *DataStoreRepository) ListBillingLedgersWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.BillingLedger, error) {
+	db := d.db.ApplyFilter(conditions).Unscoped().GORM().WithContext(ctx).Order("created_at ASC")
+	var results []*datamodel.BillingLedger
+
+	err := db.Scopes(dbutils.Paginate(pagination)).Find(&results).Error
+	if err != nil {
+		util.GetLogger(ctx).Errorf("Ledger: Failed to list billing ledger entries with pagination: %v", err)
+		return nil, vsaerrors.NewVCPError(vsaerrors.ErrDatabaseDataReadError, err)
+	}
+
+	return results, nil
 }

@@ -7860,3 +7860,19 @@ func (re *retryEngine) DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx con
 	})
 	return err
 }
+
+func (re *retryEngine) ListBillingLedgersWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.BillingLedger, error) {
+	var var0 []*datamodel.BillingLedger
+	err := retry.Do(func(attempt int) (bool, error) {
+		var err error
+		var0, err = re.dataStore.ListBillingLedgersWithPagination(ctx, conditions, pagination)
+		if err != nil {
+			re.logError("ListBillingLedgersWithPagination", err)
+			if !dbutils.IsTransientErr(err) {
+				return false, err
+			}
+		}
+		return true, err
+	})
+	return var0, err
+}

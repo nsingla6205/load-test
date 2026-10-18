@@ -2380,3 +2380,7 @@ func (s *PersistenceStore) GetBillingLedgersByResourceUUID(ctx context.Context, 
 func (s *PersistenceStore) DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx context.Context, resourceUUID string, resourceType metadata.ResourceType, measuredType metadata.MeasuredType) error {
 	return s.dataStore.DeleteBillingLedgersByResourceUUIDAndMeasuredType(ctx, resourceUUID, resourceType, measuredType)
 }
+
+func (s *PersistenceStore) ListBillingLedgersWithPagination(ctx context.Context, conditions [][]interface{}, pagination *dbutils.Pagination) ([]*datamodel.BillingLedger, error) {
+	return s.dataStore.ListBillingLedgersWithPagination(ctx, conditions, pagination)
+}
